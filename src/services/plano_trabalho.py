@@ -58,13 +58,37 @@ def validate_tipo_contribuicao(
             )
 
 
-def validate_soma_percentuais(percentuais: list[int], carga_horaria_compensacao: int = 0) -> None:
+def validate_soma_percentuais(
+    percentuais: list[int],
+    carga_horaria_compensacao: int = 0,
+    saldo_banco_horas: int = 0,
+) -> None:
     total = sum(percentuais)
-    if carga_horaria_compensacao > 0:
-        return  # soma pode ser > 100 quando há compensação
+    if total > 100 and carga_horaria_compensacao > 0:
+        return  # compensação permite soma > 100
+    if total < 100 and saldo_banco_horas > 0:
+        return  # usufruto de saldo permite soma < 100
     if total != 100:
         raise ValidationError(
             f"Soma dos percentuais das contribuições deve ser 100% (atual: {total}%)"
+        )
+
+
+def validate_adicional_ocupacional_periodicidade(
+    sujeito_adicional_ocupacional: bool,
+    modalidade_execucao: int,
+    data_inicio: date,
+    data_termino: date,
+) -> None:
+    if not sujeito_adicional_ocupacional:
+        return
+    if modalidade_execucao not in (1, 2):
+        return
+    duracao = (data_termino - data_inicio).days
+    if duracao > 31:
+        raise ValidationError(
+            "Participante sujeito a adicional ocupacional requer plano de trabalho"
+            " com periodicidade mensal (IN52 Art.8º §2º)"
         )
 
 
@@ -147,11 +171,18 @@ async def criar_plano_trabalho(
     carga_horaria_disponivel: int,
     criterios_avaliacao: str,
     plano_entregas_id: uuid.UUID | None = None,
+    tcr_id: uuid.UUID | None = None,
+    declaracao_ausencia_prejuizo_plano: bool = False,
+    declaracao_ausencia_prejuizo_comparecer: bool = False,
+    declaracao_ausencia_prejuizo_contato: bool = False,
+    declaracao_ausencia_prejuizo_sincrono: bool = False,
     user: User | None = None,
     ip_address: str | None = None,
 ) -> PlanoTrabalho:
     validate_duracao_maxima_pt(data_inicio, data_termino)
-    tcr = await _get_tcr_ativo(db, participante_id)
+    if tcr_id is None:
+        tcr = await _get_tcr_ativo(db, participante_id)
+        tcr_id = tcr.id
     await validate_data_inicio_pt_ge_pe(db, data_inicio, plano_entregas_id)
     await validate_sem_sobreposicao_pt(db, participante_id, data_inicio, data_termino)
 
@@ -164,13 +195,17 @@ async def criar_plano_trabalho(
         participante_id=participante_id,
         cpf_participante=cpf_participante,
         matricula_siape=matricula_siape,
-        tcr_id=tcr.id,
+        tcr_id=tcr_id,
         status=STATUS_PT_APROVADO,
         data_inicio=data_inicio,
         data_termino=data_termino,
         carga_horaria_disponivel=carga_horaria_disponivel,
         criterios_avaliacao=criterios_avaliacao,
         plano_entregas_id=plano_entregas_id,
+        declaracao_ausencia_prejuizo_plano=declaracao_ausencia_prejuizo_plano,
+        declaracao_ausencia_prejuizo_comparecer=declaracao_ausencia_prejuizo_comparecer,
+        declaracao_ausencia_prejuizo_contato=declaracao_ausencia_prejuizo_contato,
+        declaracao_ausencia_prejuizo_sincrono=declaracao_ausencia_prejuizo_sincrono,
     )
     db.add(pt)
     await db.flush()
@@ -281,6 +316,7 @@ async def adicionar_contribuicao(
     descricao: str,
     id_plano_entregas: str | None = None,
     id_entrega: str | None = None,
+    rotulo: str | None = None,
     user: User | None = None,
     ip_address: str | None = None,
 ) -> Contribuicao:
@@ -294,6 +330,7 @@ async def adicionar_contribuicao(
         id_plano_entregas=id_plano_entregas,
         id_entrega=id_entrega,
         descricao=descricao,
+        rotulo=rotulo,
     )
     db.add(c)
     await db.flush()

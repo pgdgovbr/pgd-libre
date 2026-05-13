@@ -24,13 +24,16 @@ def _entrega(e: Entrega) -> dict:
 
 
 def _contribuicao(c: Contribuicao) -> dict:
-    return {
+    d = {
         "id_contribuicao": c.id_contribuicao,
         "tipo_contribuicao": c.tipo_contribuicao,
         "percentual_contribuicao": c.percentual_contribuicao,
         "id_plano_entregas": c.id_plano_entregas,
         "id_entrega": c.id_entrega,
     }
+    if c.rotulo is not None:
+        d["rotulo"] = c.rotulo
+    return d
 
 
 def _avaliacao_registros_execucao(a: AvaliacaoRegistrosExecucao) -> dict | None:

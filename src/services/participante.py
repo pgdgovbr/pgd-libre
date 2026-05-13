@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
@@ -8,13 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.audit import AuditAction
 from ..models.institucional import OrigemUnidade, UnidadeExecucao
 from ..models.participante import (
+    Afastamento,
     Convocacao,
+    CriteriosPrioridade,
     MotivoDesligamento,
     Participante,
+    ProcessoSelecao,
     RegimeExecucao,
     StatusConvocacao,
     StatusTCR,
     TCR,
+    TermoGuardaEquipamento,
+    TipoAfastamento,
     TipoVinculo,
 )
 from ..models.notificacao import TipoEvento
@@ -24,6 +30,257 @@ from .institucional import ValidationError
 from .notificacao import criar_notificacao
 
 MIN_DATA_ASSINATURA_TCR = date(2023, 7, 31)
+
+# ---------------------------------------------------------------------------
+# Seleção com critérios de prioridade (RF-006)
+# ---------------------------------------------------------------------------
+
+ORDEM_PRIORIDADE: dict[CriteriosPrioridade, int] = {
+    CriteriosPrioridade.PCD: 0,
+    CriteriosPrioridade.RESP_PCD: 1,
+    CriteriosPrioridade.MOBILIDADE_REDUZIDA: 2,
+    CriteriosPrioridade.HORARIO_ESPECIAL: 3,
+    CriteriosPrioridade.SEM_PRIORIDADE: 4,
+}
+
+
+@dataclass
+class CandidatoSelecao:
+    id: str
+    nome: str
+    criterio: CriteriosPrioridade
+
+
+def ordenar_candidatos(
+    candidatos: list[CandidatoSelecao], n_vagas: int
+) -> tuple[list[CandidatoSelecao], list[CandidatoSelecao]]:
+    """Ordena candidatos pelas prioridades legais e separa em selecionados/não selecionados."""
+    ordenados = sorted(candidatos, key=lambda c: ORDEM_PRIORIDADE[c.criterio])
+    return ordenados[:n_vagas], ordenados[n_vagas:]
+
+
+async def confirmar_selecao(
+    db: AsyncSession,
+    *,
+    unidade_execucao_id: uuid.UUID,
+    candidatos: list[CandidatoSelecao],
+    n_vagas: int,
+    criterios_tecnicos: str,
+    user: User | None = None,
+    ip_address: str | None = None,
+) -> ProcessoSelecao:
+    if not criterios_tecnicos or not criterios_tecnicos.strip():
+        raise ValidationError(
+            "Critérios técnicos de adesão são obrigatórios para garantir seleção impessoal"
+            " (D11 Art.7º §2º)"
+        )
+    selecionados, nao_selecionados = ordenar_candidatos(candidatos, n_vagas)
+    resultado = [
+        {"id": c.id, "nome": c.nome, "criterio": c.criterio.value, "selecionado": True}
+        for c in selecionados
+    ] + [
+        {"id": c.id, "nome": c.nome, "criterio": c.criterio.value, "selecionado": False}
+        for c in nao_selecionados
+    ]
+    processo = ProcessoSelecao(
+        unidade_execucao_id=unidade_execucao_id,
+        criterios_tecnicos=criterios_tecnicos,
+        n_vagas=n_vagas,
+        resultado=resultado,
+        realizado_por_user_id=user.id if user else None,
+    )
+    db.add(processo)
+    await db.flush()
+    await log_audit(
+        db,
+        table_name="processos_selecao",
+        record_id=str(processo.id),
+        action=AuditAction.CREATE,
+        user=user,
+        new_values={
+            "criterios_tecnicos": criterios_tecnicos,
+            "n_vagas": n_vagas,
+            "unidade_execucao_id": str(unidade_execucao_id),
+        },
+        ip_address=ip_address,
+    )
+    await db.commit()
+    await db.refresh(processo)
+    return processo
+
+
+# ---------------------------------------------------------------------------
+# Banco de horas (RF-020)
+# ---------------------------------------------------------------------------
+
+
+def bloquear_adesao_banco_horas(participante_situacao: int) -> None:
+    """Participantes do PGD (situacao=1) não podem aderir ao banco de horas."""
+    if participante_situacao == 1:
+        raise ValidationError(
+            "Participantes do PGD não podem aderir ao banco de horas (IN52 Art.18)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Compensação de carga horária — consulta pendência (RF-019)
+# ---------------------------------------------------------------------------
+
+
+async def get_carga_compensacao_pendente(
+    db: AsyncSession, participante_id: uuid.UUID
+) -> int:
+    """Retorna horas de compensação pendentes do último plano com inexecução."""
+    from ..models.plano import AvaliacaoRegistrosExecucao, PlanoTrabalho
+
+    result = await db.execute(
+        select(AvaliacaoRegistrosExecucao)
+        .join(
+            PlanoTrabalho,
+            AvaliacaoRegistrosExecucao.plano_trabalho_id == PlanoTrabalho.id,
+        )
+        .where(
+            PlanoTrabalho.participante_id == participante_id,
+            AvaliacaoRegistrosExecucao.avaliacao_registros_execucao.in_([4, 5]),
+            AvaliacaoRegistrosExecucao.horas_inexecucao.isnot(None),
+            AvaliacaoRegistrosExecucao.horas_inexecucao > 0,
+        )
+        .order_by(AvaliacaoRegistrosExecucao.data_fim_periodo_avaliativo.desc())
+    )
+    avaliacao = result.scalars().first()
+    if avaliacao is None:
+        return 0
+
+    tcr_result = await db.execute(
+        select(TCR).where(
+            TCR.participante_id == participante_id,
+            TCR.carga_horaria_compensacao.isnot(None),
+            TCR.carga_horaria_compensacao > 0,
+            TCR.created_at > avaliacao.data_avaliacao_registros_execucao,
+        )
+    )
+    if tcr_result.scalars().first() is not None:
+        return 0
+
+    return avaliacao.horas_inexecucao
+
+
+# ---------------------------------------------------------------------------
+# Equipamentos (RF-032)
+# ---------------------------------------------------------------------------
+
+
+async def registrar_autorizacao_equipamentos(
+    db: AsyncSession,
+    *,
+    participante_id: uuid.UUID,
+    tcr_id: uuid.UUID,
+    descricao_equipamentos: str,
+    data_autorizacao: date,
+    modalidade_execucao: int,
+    user: User | None = None,
+    ip_address: str | None = None,
+) -> TermoGuardaEquipamento:
+    if modalidade_execucao != 3:
+        raise ValidationError(
+            "Retirada de equipamentos permitida apenas para teletrabalho integral"
+            " (IN24 Art.16)"
+        )
+    termo = TermoGuardaEquipamento(
+        participante_id=participante_id,
+        tcr_id=tcr_id,
+        descricao_equipamentos=descricao_equipamentos,
+        data_autorizacao=data_autorizacao,
+        autorizado_por_user_id=user.id if user else None,
+    )
+    db.add(termo)
+    await db.flush()
+    await log_audit(
+        db,
+        table_name="termos_guarda_equipamento",
+        record_id=str(termo.id),
+        action=AuditAction.CREATE,
+        user=user,
+        new_values={
+            "participante_id": str(participante_id),
+            "tcr_id": str(tcr_id),
+            "data_autorizacao": str(data_autorizacao),
+        },
+        ip_address=ip_address,
+    )
+    await db.commit()
+    await db.refresh(termo)
+    return termo
+
+
+# ---------------------------------------------------------------------------
+# Afastamentos legais (TC-M10-008)
+# ---------------------------------------------------------------------------
+
+
+async def registrar_afastamento(
+    db: AsyncSession,
+    *,
+    participante_id: uuid.UUID,
+    tipo_afastamento: TipoAfastamento,
+    data_inicio: date,
+    data_fim: date | None = None,
+    observacao: str | None = None,
+    user: User | None = None,
+    ip_address: str | None = None,
+) -> Afastamento:
+    if data_fim is not None and data_fim < data_inicio:
+        raise ValidationError(
+            "Data fim do afastamento não pode ser anterior à data de início"
+        )
+    afa = Afastamento(
+        participante_id=participante_id,
+        tipo_afastamento=tipo_afastamento,
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        observacao=observacao,
+        registrado_por_user_id=user.id if user else None,
+    )
+    db.add(afa)
+    await db.flush()
+    await log_audit(
+        db,
+        table_name="afastamentos",
+        record_id=str(afa.id),
+        action=AuditAction.CREATE,
+        user=user,
+        new_values={
+            "participante_id": str(participante_id),
+            "tipo_afastamento": tipo_afastamento.value,
+            "data_inicio": str(data_inicio),
+            "data_fim": str(data_fim) if data_fim else None,
+        },
+        ip_address=ip_address,
+    )
+    await db.commit()
+    await db.refresh(afa)
+    return afa
+
+
+# ---------------------------------------------------------------------------
+# Acumulação de cargos — validação da declaração (RF-033)
+# ---------------------------------------------------------------------------
+
+
+def validate_acumulacao_cargos_declaracao(
+    acumula_cargos: bool,
+    declaracao_plano: bool,
+    declaracao_comparecer: bool,
+    declaracao_contato: bool,
+    declaracao_sincrono: bool,
+) -> None:
+    if not acumula_cargos:
+        return
+    if not all([declaracao_plano, declaracao_comparecer, declaracao_contato, declaracao_sincrono]):
+        raise ValidationError(
+            "Declaração de ausência de prejuízo obrigatória para acumuladores de cargos"
+            " (IN52 Art.19)"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -277,11 +534,20 @@ async def pactu_tcr(
     ciencia_nao_direito_adquirido: bool,
     ciencia_custeio_estrutura: bool,
     saldo_banco_horas: int | None = None,
+    carga_horaria_compensacao: int | None = None,
+    prazo_compensacao_inexecucao: date | None = None,
     acoes_melhoria: str | None = None,
     tcr_anterior_id: uuid.UUID | None = None,
     user: User | None = None,
     ip_address: str | None = None,
 ) -> TCR:
+    if carga_horaria_compensacao and carga_horaria_compensacao > 0:
+        if prazo_compensacao_inexecucao is None:
+            raise ValidationError(
+                "Prazo de compensação de inexecução obrigatório quando há carga horária"
+                " a compensar (IN52 Art.4º §único)"
+            )
+
     prazo_compensacao = None
     if saldo_banco_horas is not None:
         prazo_compensacao = date.today() + relativedelta(months=6)
@@ -299,6 +565,8 @@ async def pactu_tcr(
         ciencia_custeio_estrutura=ciencia_custeio_estrutura,
         saldo_banco_horas=saldo_banco_horas,
         prazo_compensacao_banco_horas=prazo_compensacao,
+        carga_horaria_compensacao=carga_horaria_compensacao,
+        prazo_compensacao_inexecucao=prazo_compensacao_inexecucao,
         acoes_melhoria=acoes_melhoria,
         tcr_anterior_id=tcr_anterior_id,
         data_assinatura_participante=datetime.utcnow(),

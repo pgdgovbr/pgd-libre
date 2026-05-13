@@ -1,6 +1,6 @@
-"""Tipos Strawberry e helpers de resolvers para Participante, TCR e Convocação (Sprints 1.2–1.4)."""
+"""Tipos Strawberry e helpers de resolvers para Participante, TCR e Convocação (Sprints 1.2–1.4, 2.4)."""
 import enum
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 import strawberry
@@ -10,6 +10,7 @@ from ..models.participante import (
     RegimeExecucao,
     StatusConvocacao,
     StatusTCR,
+    TipoAfastamento,
     TipoVinculo,
 )
 from .institucional import OrigemUnidadeGql
@@ -57,6 +58,24 @@ class StatusConvocacaoGql(enum.Enum):
     ATENDIDA = "atendida"
     NAO_ATENDIDA = "nao_atendida"
     CANCELADA = "cancelada"
+
+
+@strawberry.enum
+class CriteriosPrioridadeGql(enum.Enum):
+    PCD = "pcd"
+    RESP_PCD = "responsavel_pcd"
+    MOBILIDADE_REDUZIDA = "mobilidade_reduzida"
+    HORARIO_ESPECIAL = "horario_especial"
+    SEM_PRIORIDADE = "sem_prioridade"
+
+
+@strawberry.enum
+class TipoAfastamentoGql(enum.Enum):
+    LICENCA_MEDICA = "licenca_medica"
+    LICENCA_MATERNIDADE = "licenca_maternidade"
+    FERIAS = "ferias"
+    LICENCA_CAPACITACAO = "licenca_capacitacao"
+    OUTROS = "outros"
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +133,36 @@ class ConvocacaoType:
     status: StatusConvocacaoGql
 
 
+@strawberry.type
+class ProcessoSelecaoType:
+    id: strawberry.ID
+    unidade_execucao_id: strawberry.ID
+    criterios_tecnicos: str
+    n_vagas: int
+    resultado: strawberry.scalars.JSON
+    created_at: datetime
+
+
+@strawberry.type
+class TermoGuardaEquipamentoType:
+    id: strawberry.ID
+    participante_id: strawberry.ID
+    tcr_id: strawberry.ID
+    descricao_equipamentos: str
+    data_autorizacao: date
+
+
+@strawberry.type
+class AfastamentoType:
+    id: strawberry.ID
+    participante_id: strawberry.ID
+    tipo_afastamento: TipoAfastamentoGql
+    data_inicio: date
+    data_fim: Optional[date]
+    observacao: Optional[str]
+    created_at: datetime
+
+
 # ---------------------------------------------------------------------------
 # Inputs GraphQL
 # ---------------------------------------------------------------------------
@@ -165,6 +214,39 @@ class CriarConvocacaoInput:
     periodo_presencial_fim: date
     motivo: str
     chefia_user_id: Optional[int] = None
+
+
+@strawberry.input
+class CandidatoSelecaoInput:
+    id: str
+    nome: str
+    criterio: CriteriosPrioridadeGql
+
+
+@strawberry.input
+class ConfirmarSelecaoInput:
+    unidade_execucao_id: strawberry.ID
+    candidatos: list[CandidatoSelecaoInput]
+    n_vagas: int
+    criterios_tecnicos: str
+
+
+@strawberry.input
+class RegistrarAutorizacaoEquipamentosInput:
+    participante_id: strawberry.ID
+    tcr_id: strawberry.ID
+    descricao_equipamentos: str
+    data_autorizacao: date
+    modalidade_execucao: int
+
+
+@strawberry.input
+class RegistrarAfastamentoInput:
+    participante_id: strawberry.ID
+    tipo_afastamento: TipoAfastamentoGql
+    data_inicio: date
+    data_fim: Optional[date] = None
+    observacao: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -226,4 +308,37 @@ def _convocacao_to_type(c) -> ConvocacaoType:  # type: ignore[no-untyped-def]
         periodo_presencial_fim=c.periodo_presencial_fim,
         motivo=c.motivo,
         status=StatusConvocacaoGql(c.status.value),
+    )
+
+
+def _processo_selecao_to_type(ps) -> ProcessoSelecaoType:  # type: ignore[no-untyped-def]
+    return ProcessoSelecaoType(
+        id=strawberry.ID(str(ps.id)),
+        unidade_execucao_id=strawberry.ID(str(ps.unidade_execucao_id)),
+        criterios_tecnicos=ps.criterios_tecnicos,
+        n_vagas=ps.n_vagas,
+        resultado=ps.resultado,
+        created_at=ps.created_at,
+    )
+
+
+def _termo_guarda_to_type(t) -> TermoGuardaEquipamentoType:  # type: ignore[no-untyped-def]
+    return TermoGuardaEquipamentoType(
+        id=strawberry.ID(str(t.id)),
+        participante_id=strawberry.ID(str(t.participante_id)),
+        tcr_id=strawberry.ID(str(t.tcr_id)),
+        descricao_equipamentos=t.descricao_equipamentos,
+        data_autorizacao=t.data_autorizacao,
+    )
+
+
+def _afastamento_to_type(a) -> AfastamentoType:  # type: ignore[no-untyped-def]
+    return AfastamentoType(
+        id=strawberry.ID(str(a.id)),
+        participante_id=strawberry.ID(str(a.participante_id)),
+        tipo_afastamento=TipoAfastamentoGql(a.tipo_afastamento.value),
+        data_inicio=a.data_inicio,
+        data_fim=a.data_fim,
+        observacao=a.observacao,
+        created_at=a.created_at,
     )

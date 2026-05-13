@@ -24,9 +24,14 @@ async def persist_user(
     name: str = "",
     role: UserRole = UserRole.SERVIDOR,
     is_active: bool = True,
+    cod_unidade_autorizadora: int | None = None,
 ) -> User:
     user = User(
-        email=email, name=name or email.split("@")[0], role=role, is_active=is_active
+        email=email,
+        name=name or email.split("@")[0],
+        role=role,
+        is_active=is_active,
+        cod_unidade_autorizadora=cod_unidade_autorizadora,
     )
     db.add(user)
     await db.commit()

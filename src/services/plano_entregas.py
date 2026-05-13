@@ -6,6 +6,8 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.audit import AuditAction
+from ..models.institucional import UnidadeExecucao
+from ..models.notificacao import TipoEvento
 from ..models.plano import (
     STATUS_PE_APROVADO,
     STATUS_PE_AVALIADO,
@@ -19,6 +21,7 @@ from ..models.plano import (
 from ..models.user import User
 from .audit import log_audit
 from .institucional import ValidationError
+from .notificacao import criar_notificacao
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +114,65 @@ async def criar_plano_entregas(
         },
         ip_address=ip_address,
     )
+    await db.commit()
+    await db.refresh(pe)
+    return pe
+
+
+async def aprovar_plano_entregas(
+    db: AsyncSession,
+    *,
+    plano_id: uuid.UUID,
+    aprovador_user_id: int,
+    user: User,
+    ip_address: str | None = None,
+) -> PlanoEntregas:
+    pe = await get_plano_entregas(db, plano_id)
+    if pe is None:
+        raise ValidationError("PlanoEntregas não encontrado")
+
+    ue_result = await db.execute(
+        select(UnidadeExecucao).where(UnidadeExecucao.id == pe.unidade_execucao_id)
+    )
+    ue = ue_result.scalar_one_or_none()
+
+    if ue and ue.coincide_com_instituidora:
+        raise ValidationError(
+            "Plano de unidade instituidora dispensa aprovação hierárquica superior"
+            " (IN24 Art.18 §1º)"
+        )
+
+    if ue and ue.chefia_user_id == aprovador_user_id:
+        raise ValidationError(
+            "A chefia criadora não pode aprovar o próprio plano de entregas"
+        )
+
+    pe.aprovado_por_user_id = aprovador_user_id
+    pe.data_aprovacao = date.today()
+
+    await log_audit(
+        db,
+        table_name="planos_entregas",
+        record_id=str(pe.id),
+        action=AuditAction.UPDATE,
+        user=user,
+        old_values={"aprovado_por_user_id": None},
+        new_values={
+            "aprovado_por_user_id": aprovador_user_id,
+            "data_aprovacao": str(date.today()),
+        },
+        ip_address=ip_address,
+    )
+
+    if ue and ue.chefia_user_id:
+        await criar_notificacao(
+            db,
+            tipo_evento=TipoEvento.PLANO_APROVADO,
+            conteudo="Seu plano de entregas foi aprovado pelo nível hierárquico superior.",
+            destinatario_user_id=ue.chefia_user_id,
+            contexto={"plano_id": str(plano_id)},
+        )
+
     await db.commit()
     await db.refresh(pe)
     return pe

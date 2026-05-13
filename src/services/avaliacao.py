@@ -19,6 +19,25 @@ from .notificacao import criar_notificacao
 # ---------------------------------------------------------------------------
 
 
+def validate_escala_customizada(mapeamento: dict) -> None:
+    """Escala customizada deve mapear todos os valores de 1 a 5."""
+    valores_mapeados = set(mapeamento.values())
+    if not {1, 2, 3, 4, 5}.issubset(valores_mapeados):
+        raise ValidationError(
+            "A escala deve mapear todos os valores de 1 a 5 para garantir cobertura"
+            " completa dos casos (IN24 Art.30)"
+        )
+
+
+def mapear_avaliacao_customizada(valor_customizado: str, mapeamento: dict) -> int:
+    """Converte valor customizado para escala padrão 1–5."""
+    if valor_customizado not in mapeamento:
+        raise ValidationError(
+            f"Valor '{valor_customizado}' não encontrado na escala customizada"
+        )
+    return mapeamento[valor_customizado]
+
+
 def validate_justificativa_obrigatoria(
     avaliacao: int, justificativa: str | None
 ) -> None:

@@ -203,7 +203,7 @@ async def criar_unidade_instituidora(
     ato_instituicao_ref: str,
     data_instituicao: date,
     tipos_atividades: str,
-    modalidades_autorizadas: list[int],
+    modalidades_autorizadas: list[int] = None,
     conteudo_minimo_tcr: str,
     prazo_antecedencia_convocacao_dias: int,
     vagas_percentual_presencial: int | None = None,
@@ -217,6 +217,8 @@ async def criar_unidade_instituidora(
     user: User | None = None,
     ip_address: str | None = None,
 ) -> UnidadeInstituidora:
+    if modalidades_autorizadas is None:
+        modalidades_autorizadas = [1, 2, 3]
     validate_vagas_tt_exterior(vagas_percentual_tt_exterior)
     await _require_ato_autorizacao_ativo(db, unidade_autorizadora_id)
 

@@ -168,6 +168,10 @@ class PlanoTrabalho(Base):
     data_termino: Mapped[date] = mapped_column(Date)
     carga_horaria_disponivel: Mapped[int] = mapped_column(Integer)
     criterios_avaliacao: Mapped[str] = mapped_column(Text)
+    declaracao_ausencia_prejuizo_plano: Mapped[bool] = mapped_column(Boolean, default=False)
+    declaracao_ausencia_prejuizo_comparecer: Mapped[bool] = mapped_column(Boolean, default=False)
+    declaracao_ausencia_prejuizo_contato: Mapped[bool] = mapped_column(Boolean, default=False)
+    declaracao_ausencia_prejuizo_sincrono: Mapped[bool] = mapped_column(Boolean, default=False)
     plano_entregas_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("planos_entregas.id", ondelete="SET NULL"),
@@ -205,6 +209,7 @@ class Contribuicao(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     id_contribuicao: Mapped[str] = mapped_column(String(50))
+    rotulo: Mapped[str | None] = mapped_column(String(50), nullable=True)
     plano_trabalho_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("planos_trabalho.id", ondelete="CASCADE")
     )
@@ -253,6 +258,7 @@ class AvaliacaoRegistrosExecucao(Base):
     avaliacao_escala_customizada: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
+    horas_inexecucao: Mapped[int | None] = mapped_column(Integer, nullable=True)
     recurso_texto: Mapped[str | None] = mapped_column(Text, nullable=True)
     recurso_data: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

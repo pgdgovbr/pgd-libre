@@ -11,12 +11,15 @@ from .institucional import (
 from .notificacao import Notificacao, TipoEvento
 from .participante import (
     Convocacao,
+    CriteriosPrioridade,
     MotivoDesligamento,
     Participante,
+    ProcessoSelecao,
     RegimeExecucao,
     StatusConvocacao,
     StatusTCR,
     TCR,
+    TermoGuardaEquipamento,
     TipoVinculo,
 )
 from .plano import (
@@ -29,11 +32,14 @@ from .plano import (
     StatusRecurso,
     TipoMeta,
 )
+from .sync_log import RegistroEnvioAPI, TipoEntidadeSync
 from .user import User, UserRole
 
 __all__ = [
     "User",
     "UserRole",
+    "RegistroEnvioAPI",
+    "TipoEntidadeSync",
     "AuditLog",
     "AuditAction",
     "UnidadeAutorizadora",
@@ -46,6 +52,9 @@ __all__ = [
     "Participante",
     "TCR",
     "Convocacao",
+    "CriteriosPrioridade",
+    "ProcessoSelecao",
+    "TermoGuardaEquipamento",
     "MotivoDesligamento",
     "TipoVinculo",
     "RegimeExecucao",

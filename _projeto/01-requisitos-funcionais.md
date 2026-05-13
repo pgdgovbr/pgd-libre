@@ -1,6 +1,6 @@
 # Requisitos Funcionais — PGD Libre (Plataforma na Ponta)
 
-**Versão:** 0.2 — 2026-05-13  
+**Versão:** 0.4 — 2026-05-13  
 **Contexto normativo:** Decreto nº 11.072/2022 · IN Conjunta SEGES-SGPRT/MGI nº 24/2023 · IN Conjunta SGP-SRT-SEGES/MGI nº 52/2023  
 **Contrato de dados:** API PGD Central (api-pgd, referência de código aberto do MGI)
 
@@ -937,6 +937,105 @@ Então o sistema concede ao delegado acesso às funcionalidades correspondentes,
 - A referência cruzada RF-003 → RF-031 foi corrigida para RF-003 → RF-029.
 - O RF-014 trazia "contribuição tipo 2" descrita como "vinculada a outra unidade", mas o tipo 2 na API e na lei é "não vinculada diretamente a entregas". O tipo 3 é o vinculado a entregas de outra unidade. Corrigido.
 - A tabela de resumo foi atualizada: 37 RFs totais (32 obrigatórios, 5 derivados).
+
+---
+
+## Notas da Revisão (v0.3 — 2026-05-13)
+
+### Status de implementação por RF
+
+| RF | Status | Arquivo de teste |
+|----|--------|-----------------|
+| RF-001 | ✅ Implementado | `test_institucional.py` |
+| RF-002 | ✅ Implementado | `test_institucional.py` |
+| RF-003 | ✅ Implementado | `test_institucional.py` |
+| RF-004 | ✅ Implementado | `test_public.py` |
+| RF-005 | ✅ Implementado | `test_participante.py` |
+| RF-006 | ✅ Implementado | `test_selecao.py` |
+| RF-007 | ✅ Implementado | `test_participante.py` |
+| RF-008 | ✅ Implementado | `test_participante.py` |
+| RF-009 | ✅ Implementado | `test_participante.py` |
+| RF-010 | ✅ Implementado | `test_plano_entregas.py` |
+| RF-011 | ✅ Implementado | `test_aprovacao_pe.py` |
+| RF-012 | ✅ Implementado | `test_plano_entregas.py` |
+| RF-013 | ✅ Implementado | `test_plano_entregas.py` |
+| RF-014 | ✅ Implementado | `test_plano_trabalho.py` |
+| RF-015 | ✅ Implementado | `test_plano_trabalho.py` |
+| RF-016 | ✅ Implementado | `test_plano_trabalho.py` |
+| RF-017 | ✅ Implementado | `test_avaliacao.py` |
+| RF-018 | ✅ Implementado | `test_avaliacao.py` |
+| RF-019 | ✅ Implementado | `test_compensacao_banco.py` |
+| RF-020 | ✅ Implementado | `test_compensacao_banco.py` |
+| RF-021 | ✅ Implementado | `test_sync.py` · `test_conformidade.py` |
+| RF-022 | ✅ Implementado | `test_sync.py` |
+| RF-023 | ✅ Implementado | `test_sync.py` |
+| RF-024 | ⏳ Parcial | `test_conformidade.py` — painel e reprocessamento ✅; agendamento Cloud Scheduler ❌ |
+| RF-025 | ⏳ Parcial | `test_auth_router.py` — OAuth ✅; gestão CRUD de usuários ❌ |
+| RF-026 | ✅ Implementado | `test_permissions.py` · `test_multitenant.py` |
+| RF-027 | ✅ Implementado | `test_auditoria.py` |
+| RF-028 | ⏳ Parcial | `test_relatorios.py` — TC-M07-005/006/007/008 ✅; TC-M07-009 (PE pendentes) ❌ |
+| RF-029 | ✅ Implementado | `test_notificacoes.py` |
+| RF-030 | ✅ Implementado | `test_multitenant.py` — `User.cod_unidade_autorizadora`; filtro por unidade em todas as queries GraphQL |
+| RF-031 | ✅ Implementado | `test_gestao_rh.py` |
+| RF-032 | ✅ Implementado | `test_gestao_rh.py` |
+| RF-033 | ✅ Implementado | `test_gestao_rh.py` |
+| RF-034 | ⏳ Parcial | `test_gestao_rh.py` — TC-M10-001 ✅; TC-M10-002 (payload API) ❌ |
+| RF-035 | ⏳ Parcial | `test_gestao_rh.py` — TC-M10-003/004 ✅; TC-M10-005/006 (adicional noturno) ❌ |
+| RF-036 | ❌ Pendente | — |
+| RF-037 | ❌ Pendente | — |
+
+### Detalhes de implementação (RF-021 a RF-024)
+
+**RegistroEnvioAPI** (`src/models/sync_log.py`) — modelo que guarda o histórico de tentativas de envio:
+- `tipo_entidade`: `participante` | `plano_entregas` | `plano_trabalho`
+- `entidade_id`: UUID da entidade enviada
+- `tentativa`: número ordinal da tentativa (1, 2, 3)
+- `sucesso`: bool
+- `http_status`: código HTTP da resposta da API Central (quando disponível)
+- `erro_mensagem`: texto do erro
+
+**Backoff** (`src/integration/sync.py`):
+- `RETRY_DELAYS = [60, 300, 1800]` segundos (1 min → 5 min → 30 min)
+- `MAX_TENTATIVAS = 3`
+- Entidade esgotada (tentativa ≥ 3) exige `reprocessarEnvio` manual pelo admin
+
+**Isolamento multi-tenant** (`src/models/user.py`, `src/graphql/schema.py`):
+- `User.cod_unidade_autorizadora` (BigInteger nullable) — `null` significa ADMIN sem restrição de unidade
+- Migração: `f1a2b3c4d5e6`
+- Todas as queries de listagem (`listarParticipantes`, `listarPlanosEntregas`, `listarPlanosTrabalho`) e de busca por ID filtram por unidade para roles não-admin
+
+---
+
+## Notas da Revisão (v0.4 — 2026-05-13)
+
+### RFs implementados nesta revisão
+
+| RF | TCs novos | Arquivo de teste |
+|----|-----------|-----------------|
+| RF-006 — Seleção com prioridades | TC-M02-012/013/014 | `test_selecao.py` |
+| RF-011 — Aprovação hierárquica do PE | TC-M03-009/010/011 | `test_aprovacao_pe.py` |
+| RF-019 — Compensação de carga horária | TC-M04-033/034 + variantes TCR | `test_compensacao_banco.py` |
+| RF-020 — Banco de horas | TC-M04-035/036 | `test_compensacao_banco.py` |
+| RF-028 — Relatórios de conformidade (parcial) | TC-M07-005/006/007/008 | `test_relatorios.py` |
+| RF-031 — Escalas customizadas | TC-M09-003/004/005 | `test_gestao_rh.py` |
+| RF-032 — Retirada de equipamentos | TC-M02-026/027 | `test_gestao_rh.py` |
+| RF-033 — Acumulação de cargos | TC-M02-028/029 | `test_gestao_rh.py` |
+| RF-034 — Ações de desenvolvimento (parcial) | TC-M10-001 | `test_gestao_rh.py` |
+| RF-035 — Adicionais ocupacionais (parcial) | TC-M10-003/004 | `test_gestao_rh.py` |
+
+**Total de testes após esta revisão:** 251 passando (+ 8 skipped).
+
+### Pendências após v0.4
+
+| Item | Descrição |
+|------|-----------|
+| RF-028 TC-M07-009 | Relatório de planos de entregas com avaliação pendente |
+| RF-034 TC-M10-002 | Ação de desenvolvimento incluída no payload da API Central |
+| RF-035 TC-M10-005/006 | Autorização de atividade noturna com documentação formal |
+| RF-036 | Registro de códigos de participação (frequência) |
+| RF-037 | Delegação de competências da chefia |
+| RF-024 TC-M05-010 | Agendamento automático de envio (Cloud Scheduler) |
+| RF-025 TC-M06-003/004/005 | CRUD de usuários e recuperação de senha |
 
 ---
 

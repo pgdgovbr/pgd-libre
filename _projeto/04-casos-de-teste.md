@@ -1,8 +1,8 @@
 # Casos de Teste — PGD Libre
 
-**Versão:** 0.1 — 2026-05-13  
+**Versão:** 0.3 — 2026-05-13  
 **Abordagem:** TDD (Test-Driven Development)  
-**Referência:** `01-requisitos-funcionais.md` (v0.2) · `02-modelo-dados-e-workflows.md` (v0.2)
+**Referência:** `01-requisitos-funcionais.md` (v0.4) · `02-modelo-dados-e-workflows.md` (v0.2)
 
 > **Propósito:** Este documento define os casos de teste que governam a implementação. Cada funcionalidade deve ter seus testes escritos e falhando *antes* do código de produção existir. Um requisito funcional está concluído somente quando todos os seus casos de teste passam.
 
@@ -30,6 +30,8 @@ TC-M01-003  →  Módulo 1 (Gestão Institucional), caso de teste 3
 | Notificações | TC-M08 |
 | Configuração e Multi-tenant | TC-M09 |
 | Gestão de Pessoas / RH | TC-M10 |
+| Multi-tenant (isolamento por unidade) | TC-MT |
+| Sprint 2.2 — Conformidade / Retry | TC-S22 |
 
 ### Categorias de teste
 
@@ -1530,46 +1532,48 @@ Transições inválidas: `4 → 3`, `1 → 2`, `3 → 2`, `5 → qualquer`.
 
 | RF | TCs | Status |
 |----|-----|--------|
-| RF-001 | TC-M01-001 a TC-M01-005 | — |
-| RF-002 | TC-M01-006 a TC-M01-009 | — |
-| RF-003 | TC-M01-010 a TC-M01-012 | — |
-| RF-004 | TC-M01-013 a TC-M01-015 | — |
-| RF-005 | TC-M02-001 a TC-M02-011 | — |
-| RF-006 | TC-M02-012 a TC-M02-014 | — |
-| RF-007 | TC-M02-015 a TC-M02-020 | — |
-| RF-008 | TC-M02-021 a TC-M02-023 | — |
-| RF-009 | TC-M02-024 a TC-M02-025 | — |
-| RF-010 | TC-M03-001 a TC-M03-008 | — |
-| RF-011 | TC-M03-009 a TC-M03-011 | — |
-| RF-012 | TC-M03-012 a TC-M03-014 | — |
-| RF-013 | TC-M03-015 a TC-M03-019 | — |
-| RF-014 | TC-M04-001 a TC-M04-013 | — |
-| RF-015 | TC-M04-014 a TC-M04-018 | — |
-| RF-016 | TC-M04-019 a TC-M04-020 | — |
-| RF-017 | TC-M04-021 a TC-M04-026 | — |
-| RF-018 | TC-M04-027 a TC-M04-032 | — |
-| RF-019 | TC-M04-033 a TC-M04-034 | — |
-| RF-020 | TC-M04-035 a TC-M04-036 | — |
-| RF-021 | TC-M05-001 a TC-M05-005 | — |
-| RF-022 | TC-M05-006 a TC-M05-007 | — |
-| RF-023 | TC-M05-008 a TC-M05-009 | — |
-| RF-024 | TC-M05-010 a TC-M05-012 | — |
-| RF-025 | TC-M06-001 a TC-M06-007 | — |
-| RF-026 | TC-M06-008 a TC-M06-013 | — |
-| RF-027 | TC-M07-001 a TC-M07-004 | — |
-| RF-028 | TC-M07-005 a TC-M07-009 | — |
-| RF-029 | TC-M08-001 a TC-M08-008 | — |
-| RF-030 | TC-M09-001 a TC-M09-002 | — |
-| RF-031 | TC-M09-003 a TC-M09-005 | — |
-| RF-032 | TC-M02-026 a TC-M02-027 | — |
-| RF-033 | TC-M02-028 a TC-M02-029 | — |
-| RF-034 | TC-M10-001 a TC-M10-002 | — |
-| RF-035 | TC-M10-003 a TC-M10-006 | — |
-| RF-036 | TC-M10-007 a TC-M10-008 | — |
-| RF-037 | TC-M10-009 a TC-M10-013 | — |
-| **Transversais** | TC-TX-001 a TC-TX-004 | — |
+| RF-001 | TC-M01-001 a TC-M01-005 | ✅ `test_institucional.py` |
+| RF-002 | TC-M01-006 a TC-M01-009 | ✅ `test_institucional.py` |
+| RF-003 | TC-M01-010 a TC-M01-012 | ✅ `test_institucional.py` |
+| RF-004 | TC-M01-013 a TC-M01-015 | ⏳ TC-013 ✅ `test_public.py`; 014-015 ❌ |
+| RF-005 | TC-M02-001 a TC-M02-011 | ✅ `test_participante.py` |
+| RF-006 | TC-M02-012 a TC-M02-014 | ✅ `test_selecao.py` |
+| RF-007 | TC-M02-015 a TC-M02-020 | ✅ `test_participante.py` |
+| RF-008 | TC-M02-021 a TC-M02-023 | ✅ `test_participante.py` |
+| RF-009 | TC-M02-024 a TC-M02-025 | ✅ `test_participante.py` |
+| RF-010 | TC-M03-001 a TC-M03-008 | ✅ `test_plano_entregas.py` |
+| RF-011 | TC-M03-009 a TC-M03-011 | ✅ `test_aprovacao_pe.py` |
+| RF-012 | TC-M03-012 a TC-M03-014 | ✅ `test_plano_entregas.py` |
+| RF-013 | TC-M03-015 a TC-M03-019 | ✅ `test_plano_entregas.py` |
+| RF-014 | TC-M04-001 a TC-M04-013 | ✅ `test_plano_trabalho.py` |
+| RF-015 | TC-M04-014 a TC-M04-018 | ✅ `test_plano_trabalho.py` |
+| RF-016 | TC-M04-019 a TC-M04-020 | ✅ `test_plano_trabalho.py` |
+| RF-017 | TC-M04-021 a TC-M04-026 | ✅ `test_avaliacao.py` |
+| RF-018 | TC-M04-027 a TC-M04-032 | ✅ `test_avaliacao.py` |
+| RF-019 | TC-M04-033 a TC-M04-034 | ✅ `test_compensacao_banco.py` |
+| RF-020 | TC-M04-035 a TC-M04-036 | ✅ `test_compensacao_banco.py` |
+| RF-021 | TC-M05-001 a TC-M05-005 | ✅ `test_sync.py` · `test_conformidade.py` |
+| RF-022 | TC-M05-006 a TC-M05-007 | ✅ `test_sync.py` |
+| RF-023 | TC-M05-008 a TC-M05-009 | ✅ `test_sync.py` |
+| RF-024 | TC-M05-010 a TC-M05-012 | ⏳ TC-011/012 ✅ `test_conformidade.py`; TC-010 ❌ |
+| RF-025 | TC-M06-001 a TC-M06-007 | ⏳ TC-001/002 ✅ `test_auth_router.py`; 003-005 ❌ |
+| RF-026 | TC-M06-008 a TC-M06-013 | ✅ `test_permissions.py` · `test_multitenant.py` |
+| RF-027 | TC-M07-001 a TC-M07-004 | ✅ `test_auditoria.py` |
+| RF-028 | TC-M07-005 a TC-M07-009 | ⏳ 005/006/007/008 ✅ `test_relatorios.py`; TC-009 ❌ |
+| RF-029 | TC-M08-001 a TC-M08-008 | ✅ `test_notificacoes.py` |
+| RF-030 | TC-M09-001 a TC-M09-002 | ✅ `test_multitenant.py` (TC-MT-001 a TC-MT-007) |
+| RF-031 | TC-M09-003 a TC-M09-005 | ✅ `test_gestao_rh.py` |
+| RF-032 | TC-M02-026 a TC-M02-027 | ✅ `test_gestao_rh.py` |
+| RF-033 | TC-M02-028 a TC-M02-029 | ✅ `test_gestao_rh.py` |
+| RF-034 | TC-M10-001 a TC-M10-002 | ⏳ TC-001 ✅ `test_gestao_rh.py`; TC-002 ❌ |
+| RF-035 | TC-M10-003 a TC-M10-006 | ⏳ TC-003/004 ✅ `test_gestao_rh.py`; TC-005/006 ❌ |
+| RF-036 | TC-M10-007 a TC-M10-008 | ❌ Pendente |
+| RF-037 | TC-M10-009 a TC-M10-013 | ❌ Pendente |
+| **Transversais** | TC-TX-001 a TC-TX-004 | ⏳ TX-001/002/003 ✅; TX-004 ✅ `test_multitenant.py` |
+| **Multi-tenant** | TC-MT-001 a TC-MT-007 | ✅ `test_multitenant.py` |
+| **Sprint 2.2** | TC-S22-001 a TC-S22-008 | ✅ `test_conformidade.py` |
 
-**Total de casos de teste:** 113 (+ 4 transversais)
+**Total de casos de teste:** 113 (+ 4 transversais + 7 TC-MT + 8 TC-S22 = **132**)
 
 ---
 
@@ -1859,20 +1863,148 @@ Testes de jornada cobrem fluxos completos do ponto de vista de um ator específi
 
 ---
 
+---
+
+## TC-MT — Multi-tenant (isolamento por unidade)
+
+> Todos os testes em `tests/test_multitenant.py`. Implementam TC-TX-004 e TC-M09-001/002.
+
+### TC-MT-001 — Gestor vê apenas participantes da própria unidade `[I]` P1
+
+**Dado** que existem participantes em duas unidades autorizadoras distintas,  
+**Quando** um gestor com `cod_unidade_autorizadora=100` consulta `listarParticipantes`,  
+**Então** retorna apenas os participantes da unidade 100.
+
+---
+
+### TC-MT-002 — Admin vê participantes de todas as unidades `[I]` P1
+
+**Dado** que existem participantes em duas unidades,  
+**Quando** um usuário com papel `admin` consulta `listarParticipantes`,  
+**Então** retorna participantes de ambas as unidades.
+
+---
+
+### TC-MT-003 — Gestor não acessa participante de outra unidade por ID `[I]` P1
+
+**Dado** que o participante X pertence à unidade 202,  
+**Quando** um gestor da unidade 102 consulta `participante(id: X)`,  
+**Então** retorna `null` (sem FORBIDDEN — não vaza a existência).
+
+---
+
+### TC-MT-004 — Gestor acessa participante da própria unidade por ID `[I]` P1
+
+**Dado** que o participante X pertence à unidade 103,  
+**Quando** um gestor da unidade 103 consulta `participante(id: X)`,  
+**Então** retorna o participante com os dados corretos.
+
+---
+
+### TC-MT-005 — Gestor vê apenas planos de entregas da própria unidade `[I]` P1
+
+Análogo ao TC-MT-001 para `listarPlanosEntregas`.
+
+---
+
+### TC-MT-006 — Admin vê planos de entregas de todas as unidades `[I]` P1
+
+Análogo ao TC-MT-002 para `listarPlanosEntregas`.
+
+---
+
+### TC-MT-007 — Chefe imediato também fica limitado à própria unidade `[I]` P1
+
+**Dado** que existe participante em unidade 206,  
+**Quando** um usuário com papel `chefe_imediato` da unidade 106 consulta `listarParticipantes`,  
+**Então** retorna apenas os participantes da unidade 106.
+
+---
+
+## TC-S22 — Sprint 2.2: RegistroEnvioAPI e Conformidade
+
+> Todos os testes em `tests/test_conformidade.py`. Cobrem RF-021/022/023/024.
+
+### TC-S22-001 — Envio com sucesso cria RegistroEnvioAPI com sucesso=True `[I]` P1
+
+**Dado** que existe participante com `api_sincronizado_em = null`,  
+**Quando** o worker de sync executa com sucesso,  
+**Então** é criado um `RegistroEnvioAPI` com `sucesso=True`, `tentativa=1`, `http_status=null`.
+
+---
+
+### TC-S22-002 — Falha cria RegistroEnvioAPI com sucesso=False e mensagem `[I]` P1
+
+**Dado** que o envio lança exceção,  
+**Quando** o worker executa,  
+**Então** é criado `RegistroEnvioAPI` com `sucesso=False`, `tentativa=1`, `erro_mensagem` preenchida.
+
+---
+
+### TC-S22-003 — Entidade com falha recente não é retentada (backoff) `[I]` P1
+
+**Dado** que existe registro de falha com `tentativa=1` feito agora mesmo (< 60s),  
+**Quando** o worker executa,  
+**Então** a entidade **não** é enviada novamente (backoff não expirou).
+
+---
+
+### TC-S22-004 — Entidade com falha antiga É retentada `[I]` P1
+
+**Dado** que existe registro de falha com `tentativa=1` feito há mais de `RETRY_DELAYS[0] + 10s`,  
+**Quando** o worker executa,  
+**Então** a entidade é enviada novamente.
+
+---
+
+### TC-S22-005 — Entidade que esgotou tentativas (MAX_TENTATIVAS) é ignorada `[I]` P1
+
+**Dado** que existe registro com `tentativa = MAX_TENTATIVAS` (= 3) e backoff expirado,  
+**Quando** o worker executa,  
+**Então** a entidade **não** é enviada (esgotou — requer `reprocessarEnvio` manual).
+
+---
+
+### TC-S22-006 — Retry incrementa tentativa corretamente `[I]` P1
+
+**Dado** que existe registro com `tentativa=1` e backoff expirado,  
+**Quando** o worker tenta e falha novamente,  
+**Então** o novo `RegistroEnvioAPI` tem `tentativa=2`.
+
+---
+
+### TC-S22-007 — Painel de conformidade retorna contagens corretas `[E]` P2
+
+**Dado** que existem 3 participantes: 1 enviado, 1 pendente sem tentativa, 1 com falha,  
+**Quando** o admin consulta `painelConformidade`,  
+**Então** retorna `{ total: 3, enviados: 1, pendentes: 2, comErro: 1 }` para participantes.
+
+---
+
+### TC-S22-008 — reprocessarEnvio remove registros de falha `[I]` P2
+
+**Dado** que um participante esgotou as `MAX_TENTATIVAS` tentativas,  
+**Quando** o admin executa `reprocessarEnvio(tipoEntidade: "participante", entidadeId: X)`,  
+**Então** os registros de falha são removidos e o participante fica elegível para retry imediato.
+
+---
+
 ## Resumo executivo dos casos de teste
 
-| Categoria | Qtd | Prioridade P1 | Prioridade P2/P3 |
-|-----------|-----|--------------|-----------------|
-| Transversais (TX) | 4 | 4 | 0 |
-| M01 — Gestão Institucional | 15 | 12 | 3 |
-| M02 — Gestão de Participantes | 29 | 26 | 3 |
-| M03 — Plano de Entregas | 19 | 17 | 2 |
-| M04 — Plano de Trabalho | 36 | 34 | 2 |
-| M05 — Integração API Central | 12 | 8 | 4 |
-| M06 — Autenticação / RBAC | 13 | 13 | 0 |
-| M07 — Auditoria | 9 | 7 | 2 |
-| M08 — Notificações | 8 | 8 | 0 |
-| M09 — Configuração | 5 | 3 | 2 |
-| M10 — Gestão de Pessoas / RH | 13 | 11 | 2 |
-| **JU — Jornadas de Usuário** | **11** | **9** | **2** |
-| **Total** | **174** | **152** | **22** |
+| Categoria | Qtd | Prioridade P1 | Prioridade P2/P3 | Status |
+|-----------|-----|--------------|-----------------|--------|
+| Transversais (TX) | 4 | 4 | 0 | ⏳ 3/4 ✅ |
+| M01 — Gestão Institucional | 15 | 12 | 3 | ⏳ 13/15 ✅ |
+| M02 — Gestão de Participantes | 29 | 26 | 3 | ✅ 29/29 |
+| M03 — Plano de Entregas | 19 | 17 | 2 | ✅ 19/19 |
+| M04 — Plano de Trabalho | 36 | 34 | 2 | ✅ 36/36 |
+| M05 — Integração API Central | 12 | 8 | 4 | ⏳ 9/12 ✅ |
+| M06 — Autenticação / RBAC | 13 | 13 | 0 | ⏳ 8/13 ✅ |
+| M07 — Auditoria / Relatórios | 9 | 7 | 2 | ⏳ 8/9 ✅ |
+| M08 — Notificações | 8 | 8 | 0 | ✅ 8/8 |
+| M09 — Configuração | 5 | 3 | 2 | ✅ 5/5 |
+| M10 — Gestão de Pessoas / RH | 13 | 11 | 2 | ⏳ 4/13 ✅ |
+| MT — Multi-tenant | 7 | 7 | 0 | ✅ 7/7 |
+| S22 — Conformidade/Retry | 8 | 6 | 2 | ✅ 8/8 |
+| **JU — Jornadas de Usuário** | **11** | **9** | **2** | ❌ 0/11 |
+| **TOTAL** | **189** | **168** | **21** | **⏳ 157/189** |

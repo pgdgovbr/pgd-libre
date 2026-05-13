@@ -23,6 +23,14 @@ from .base import Base
 from .institucional import OrigemUnidade
 
 
+class CriteriosPrioridade(enum.StrEnum):
+    PCD = "pcd"
+    RESP_PCD = "responsavel_pcd"
+    MOBILIDADE_REDUZIDA = "mobilidade_reduzida"
+    HORARIO_ESPECIAL = "horario_especial"
+    SEM_PRIORIDADE = "sem_prioridade"
+
+
 class MotivoDesligamento(enum.StrEnum):
     A_PEDIDO = "a_pedido"
     INTERESSE_ADMINISTRACAO = "interesse_administracao"
@@ -55,6 +63,14 @@ class StatusConvocacao(enum.StrEnum):
     ATENDIDA = "atendida"
     NAO_ATENDIDA = "nao_atendida"
     CANCELADA = "cancelada"
+
+
+class TipoAfastamento(enum.StrEnum):
+    LICENCA_MEDICA = "licenca_medica"
+    LICENCA_MATERNIDADE = "licenca_maternidade"
+    FERIAS = "ferias"
+    LICENCA_CAPACITACAO = "licenca_capacitacao"
+    OUTROS = "outros"
 
 
 class Participante(Base):
@@ -102,6 +118,8 @@ class Participante(Base):
     tipo_vinculo: Mapped[TipoVinculo] = mapped_column(
         Enum(TipoVinculo, name="tipovinculo")
     )
+    acumula_cargos: Mapped[bool] = mapped_column(Boolean, default=False)
+    sujeito_adicional_ocupacional: Mapped[bool] = mapped_column(Boolean, default=False)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     unidade_execucao_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("unidades_execucao.id", ondelete="RESTRICT")
@@ -211,3 +229,68 @@ class Convocacao(Base):
     )
 
     participante: Mapped["Participante"] = relationship(back_populates="convocacoes")
+
+
+class ProcessoSelecao(Base):
+    __tablename__ = "processos_selecao"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    unidade_execucao_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("unidades_execucao.id", ondelete="CASCADE")
+    )
+    criterios_tecnicos: Mapped[str] = mapped_column(Text)
+    n_vagas: Mapped[int] = mapped_column(Integer)
+    resultado: Mapped[list] = mapped_column(JSON, default=list)
+    realizado_por_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class TermoGuardaEquipamento(Base):
+    __tablename__ = "termos_guarda_equipamento"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    participante_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("participantes.id", ondelete="CASCADE")
+    )
+    tcr_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tcrs.id", ondelete="RESTRICT")
+    )
+    descricao_equipamentos: Mapped[str] = mapped_column(Text)
+    data_autorizacao: Mapped[date] = mapped_column(Date)
+    autorizado_por_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class Afastamento(Base):
+    __tablename__ = "afastamentos"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    participante_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("participantes.id", ondelete="CASCADE")
+    )
+    tipo_afastamento: Mapped[TipoAfastamento] = mapped_column(
+        Enum(TipoAfastamento, name="tipoafastamento")
+    )
+    data_inicio: Mapped[date] = mapped_column(Date)
+    data_fim: Mapped[date | None] = mapped_column(Date, nullable=True)
+    observacao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    registrado_por_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

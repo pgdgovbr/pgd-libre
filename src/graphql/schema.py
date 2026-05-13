@@ -11,7 +11,12 @@ from strawberry.types import Info
 from ..auth.deps import get_optional_user
 from ..database import get_db
 from ..models.institucional import OrigemUnidade, StatusAto, StatusPgd
-from ..models.participante import MotivoDesligamento, RegimeExecucao, TipoVinculo
+from ..models.participante import (
+    MotivoDesligamento,
+    RegimeExecucao,
+    TipoAfastamento,
+    TipoVinculo,
+)
 from ..models.plano import DecisaoRecurso, TipoMeta
 from ..models.user import User
 from ..models.notificacao import TipoEvento as _TipoEvento
@@ -36,21 +41,31 @@ from .institucional import (
     _ui_to_type,
 )
 from .participante import (
+    AfastamentoType,
     CadastrarParticipanteInput,
+    ConfirmarSelecaoInput,
     ConvocacaoType,
     CriarConvocacaoInput,
     MotivoDesligamentoGql,
     ParticipanteType,
     PactuarTCRInput,
+    ProcessoSelecaoType,
+    RegistrarAfastamentoInput,
+    RegistrarAutorizacaoEquipamentosInput,
     TCRType,
+    TermoGuardaEquipamentoType,
+    _afastamento_to_type,
     _convocacao_to_type,
     _participante_to_type,
+    _processo_selecao_to_type,
     _tcr_to_type,
+    _termo_guarda_to_type,
 )
-from .permissions import IsAdmin
+from .permissions import IsAdmin, IsGestorOrAdmin, IsChefiaOrAbove
 from .notificacao import NotificacaoType, _notificacao_to_type
 from .plano import (
     AdicionarContribuicaoInput,
+    AprovarPlanoEntregasInput,
     AvaliacaoType,
     ContribuicaoType,
     CriarEntregaInput,
@@ -67,6 +82,31 @@ from .plano import (
     _pe_to_type,
     _pt_to_type,
 )
+
+
+@strawberry.type
+class ConformidadeEntidadeType:
+    tipo: str
+    total: int
+    enviados: int
+    pendentes: int
+    com_erro: int
+
+
+@strawberry.type
+class PainelConformidadeType:
+    participantes: ConformidadeEntidadeType
+    planos_entregas: ConformidadeEntidadeType
+    planos_trabalho: ConformidadeEntidadeType
+
+
+def _ua_cod(info: Info) -> int | None:
+    """Returns the user's cod_unidade_autorizadora, or None if ADMIN (sees all)."""
+    from ..models.user import UserRole
+    user: User | None = info.context.get("user")
+    if user is None or user.role == UserRole.ADMIN:
+        return None
+    return user.cod_unidade_autorizadora
 
 
 def _ip(info: Info) -> str | None:
@@ -126,31 +166,106 @@ class Query:
 
     # --- Sprints 1.2–1.4 ---
 
-    @strawberry.field(permission_classes=[IsAdmin])
+    @strawberry.field(permission_classes=[IsChefiaOrAbove])
     async def participante(
         self, info: Info, id: strawberry.ID
     ) -> ParticipanteType | None:
+        from sqlalchemy import select
+        from ..models.participante import Participante
         db: AsyncSession = info.context["db"]
-        p = await participante_svc.get_participante(db, uuid.UUID(str(id)))
+        ua_cod = _ua_cod(info)
+        stmt = select(Participante).where(Participante.id == uuid.UUID(str(id)))
+        if ua_cod is not None:
+            stmt = stmt.where(Participante.cod_unidade_autorizadora == ua_cod)
+        result = await db.execute(stmt)
+        p = result.scalar_one_or_none()
         return _participante_to_type(p) if p else None
+
+    @strawberry.field(permission_classes=[IsChefiaOrAbove])
+    async def listar_participantes(self, info: Info) -> list[ParticipanteType]:
+        from sqlalchemy import select
+        from ..models.participante import Participante
+        db: AsyncSession = info.context["db"]
+        ua_cod = _ua_cod(info)
+        stmt = select(Participante)
+        if ua_cod is not None:
+            stmt = stmt.where(Participante.cod_unidade_autorizadora == ua_cod)
+        result = await db.execute(stmt)
+        return [_participante_to_type(p) for p in result.scalars()]
 
     # --- Sprints 1.3–1.5 ---
 
-    @strawberry.field(permission_classes=[IsAdmin])
+    @strawberry.field(permission_classes=[IsChefiaOrAbove])
     async def plano_entregas(
         self, info: Info, id: strawberry.ID
     ) -> PlanoEntregasType | None:
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from ..models.plano import PlanoEntregas
         db: AsyncSession = info.context["db"]
-        pe = await pe_svc.get_plano_entregas(db, uuid.UUID(str(id)))
+        ua_cod = _ua_cod(info)
+        stmt = (
+            select(PlanoEntregas)
+            .options(selectinload(PlanoEntregas.entregas))
+            .where(PlanoEntregas.id == uuid.UUID(str(id)))
+        )
+        if ua_cod is not None:
+            stmt = stmt.where(PlanoEntregas.cod_unidade_autorizadora == ua_cod)
+        result = await db.execute(stmt)
+        pe = result.scalar_one_or_none()
         return _pe_to_type(pe) if pe else None
 
-    @strawberry.field(permission_classes=[IsAdmin])
+    @strawberry.field(permission_classes=[IsChefiaOrAbove])
+    async def listar_planos_entregas(self, info: Info) -> list[PlanoEntregasType]:
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from ..models.plano import PlanoEntregas
+        db: AsyncSession = info.context["db"]
+        ua_cod = _ua_cod(info)
+        stmt = select(PlanoEntregas).options(selectinload(PlanoEntregas.entregas))
+        if ua_cod is not None:
+            stmt = stmt.where(PlanoEntregas.cod_unidade_autorizadora == ua_cod)
+        result = await db.execute(stmt)
+        return [_pe_to_type(pe) for pe in result.scalars()]
+
+    @strawberry.field(permission_classes=[IsChefiaOrAbove])
     async def plano_trabalho(
         self, info: Info, id: strawberry.ID
     ) -> PlanoTrabalhoType | None:
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from ..models.plano import PlanoTrabalho
         db: AsyncSession = info.context["db"]
-        pt = await pt_svc.get_plano_trabalho(db, uuid.UUID(str(id)))
+        ua_cod = _ua_cod(info)
+        stmt = (
+            select(PlanoTrabalho)
+            .options(
+                selectinload(PlanoTrabalho.contribuicoes),
+                selectinload(PlanoTrabalho.avaliacoes),
+            )
+            .where(PlanoTrabalho.id == uuid.UUID(str(id)))
+        )
+        if ua_cod is not None:
+            stmt = stmt.where(PlanoTrabalho.cod_unidade_autorizadora == ua_cod)
+        result = await db.execute(stmt)
+        pt = result.scalar_one_or_none()
         return _pt_to_type(pt) if pt else None
+
+    @strawberry.field(permission_classes=[IsChefiaOrAbove])
+    async def listar_planos_trabalho(self, info: Info) -> list[PlanoTrabalhoType]:
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from ..models.plano import PlanoTrabalho
+        db: AsyncSession = info.context["db"]
+        ua_cod = _ua_cod(info)
+        stmt = select(PlanoTrabalho).options(
+            selectinload(PlanoTrabalho.contribuicoes),
+            selectinload(PlanoTrabalho.avaliacoes),
+        )
+        if ua_cod is not None:
+            stmt = stmt.where(PlanoTrabalho.cod_unidade_autorizadora == ua_cod)
+        result = await db.execute(stmt)
+        return [_pt_to_type(pt) for pt in result.scalars()]
 
     # --- Sprint 1.6 ---
 
@@ -167,6 +282,124 @@ class Query:
             .limit(50)
         )
         return [_notificacao_to_type(n) for n in result.scalars()]
+
+    # --- Sprint 2.2 ---
+
+    @strawberry.field(permission_classes=[IsAdmin])
+    async def painel_conformidade(self, info: Info) -> PainelConformidadeType:
+        from sqlalchemy import func, select
+        from ..models.participante import Participante
+        from ..models.plano import PlanoEntregas, PlanoTrabalho
+        from ..models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
+
+        db: AsyncSession = info.context["db"]
+
+        async def _stats(model: type, tipo: TipoEntidadeSync) -> ConformidadeEntidadeType:
+            total_r = await db.execute(select(func.count()).select_from(model))
+            total = total_r.scalar_one()
+
+            env_r = await db.execute(
+                select(func.count()).select_from(model).where(
+                    model.api_sincronizado_em.isnot(None)
+                )
+            )
+            enviados = env_r.scalar_one()
+
+            # entidades com pelo menos um registro de falha e ainda não enviadas
+            com_erro_r = await db.execute(
+                select(func.count(RegistroEnvioAPI.entidade_id.distinct())).where(
+                    RegistroEnvioAPI.tipo_entidade == tipo,
+                    RegistroEnvioAPI.sucesso == False,  # noqa: E712
+                )
+            )
+            com_erro = com_erro_r.scalar_one()
+
+            return ConformidadeEntidadeType(
+                tipo=tipo.value,
+                total=total,
+                enviados=enviados,
+                pendentes=total - enviados,
+                com_erro=com_erro,
+            )
+
+        return PainelConformidadeType(
+            participantes=await _stats(Participante, TipoEntidadeSync.PARTICIPANTE),
+            planos_entregas=await _stats(PlanoEntregas, TipoEntidadeSync.PLANO_ENTREGAS),
+            planos_trabalho=await _stats(PlanoTrabalho, TipoEntidadeSync.PLANO_TRABALHO),
+        )
+
+    # --- Sprint 2.4 — Relatórios de conformidade ---
+
+    @strawberry.field(permission_classes=[IsGestorOrAdmin])
+    async def relatorio_sem_plano_trabalho(
+        self,
+        info: Info,
+        cod_unidade_autorizadora: Optional[int] = None,
+    ) -> list[ParticipanteType]:
+        from ..services import relatorios as rel_svc
+        db: AsyncSession = info.context["db"]
+        ua_cod = cod_unidade_autorizadora if cod_unidade_autorizadora is not None else _ua_cod(info)
+        participantes = await rel_svc.relatorio_sem_plano_trabalho(db, ua_cod)
+        return [_participante_to_type(p) for p in participantes]
+
+    @strawberry.field(permission_classes=[IsGestorOrAdmin])
+    async def relatorio_registros_atraso(
+        self,
+        info: Info,
+        referencia: date,
+        cod_unidade_autorizadora: Optional[int] = None,
+    ) -> list[AvaliacaoType]:
+        from ..services import relatorios as rel_svc
+        db: AsyncSession = info.context["db"]
+        ua_cod = cod_unidade_autorizadora if cod_unidade_autorizadora is not None else _ua_cod(info)
+        avaliacoes = await rel_svc.relatorio_registros_atraso(db, referencia, ua_cod)
+        return [_avaliacao_to_type(a) for a in avaliacoes]
+
+    @strawberry.field(permission_classes=[IsGestorOrAdmin])
+    async def relatorio_avaliacoes_pendentes(
+        self,
+        info: Info,
+        referencia: date,
+        cod_unidade_autorizadora: Optional[int] = None,
+    ) -> list[AvaliacaoType]:
+        from ..services import relatorios as rel_svc
+        db: AsyncSession = info.context["db"]
+        ua_cod = cod_unidade_autorizadora if cod_unidade_autorizadora is not None else _ua_cod(info)
+        avaliacoes = await rel_svc.relatorio_avaliacoes_pendentes(db, referencia, ua_cod)
+        return [_avaliacao_to_type(a) for a in avaliacoes]
+
+    @strawberry.field(permission_classes=[IsGestorOrAdmin])
+    async def relatorio_pe_avaliacao_pendente(
+        self,
+        info: Info,
+        referencia: date,
+        cod_unidade_autorizadora: Optional[int] = None,
+    ) -> list[PlanoEntregasType]:
+        from ..services import relatorios as rel_svc
+        db: AsyncSession = info.context["db"]
+        ua_cod = cod_unidade_autorizadora if cod_unidade_autorizadora is not None else _ua_cod(info)
+        planos = await rel_svc.relatorio_pe_avaliacao_pendente(db, referencia, ua_cod)
+        return [_pe_to_type(pe) for pe in planos]
+
+    # --- Sprint 2.6 — Afastamentos (TC-M10-008) ---
+
+    @strawberry.field(permission_classes=[IsGestorOrAdmin])
+    async def relatorio_afastamentos(
+        self,
+        info: Info,
+        cod_unidade_autorizadora: int,
+        ano: int,
+        mes: int,
+    ) -> list[AfastamentoType]:
+        from ..services import relatorios as rel_svc
+        db: AsyncSession = info.context["db"]
+        afastamentos = await rel_svc.relatorio_afastamentos(
+            db,
+            cod_unidade_autorizadora=cod_unidade_autorizadora,
+            ano=ano,
+            mes=mes,
+        )
+        return [_afastamento_to_type(a) for a in afastamentos]
 
 
 @strawberry.type
@@ -562,6 +795,7 @@ class Mutation:
             descricao=input.descricao,
             id_plano_entregas=input.id_plano_entregas,
             id_entrega=input.id_entrega,
+            rotulo=input.rotulo,
             user=user,
             ip_address=_ip(info),
         )
@@ -676,6 +910,112 @@ class Mutation:
             ip_address=_ip(info),
         )
         return _avaliacao_to_type(are)
+
+    # --- Sprint 2.2 ---
+
+    @strawberry.mutation(permission_classes=[IsAdmin])
+    async def reprocessar_envio(
+        self,
+        info: Info,
+        tipo_entidade: str,
+        entidade_id: strawberry.ID,
+    ) -> bool:
+        """Remove registros de falha para a entidade, permitindo retry imediato."""
+        import uuid as _uuid
+        from sqlalchemy import delete
+        from ..models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
+        db: AsyncSession = info.context["db"]
+        await db.execute(
+            delete(RegistroEnvioAPI).where(
+                RegistroEnvioAPI.tipo_entidade == TipoEntidadeSync(tipo_entidade),
+                RegistroEnvioAPI.entidade_id == _uuid.UUID(str(entidade_id)),
+                RegistroEnvioAPI.sucesso == False,  # noqa: E712
+            )
+        )
+        await db.commit()
+        return True
+
+    # --- Sprint 2.4 — Seleção, aprovação de PE, equipamentos ---
+
+    @strawberry.mutation(permission_classes=[IsChefiaOrAbove])
+    async def confirmar_selecao(
+        self, info: Info, input: ConfirmarSelecaoInput
+    ) -> ProcessoSelecaoType:
+        from ..services.participante import CandidatoSelecao
+        from ..models.participante import CriteriosPrioridade
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        candidatos = [
+            CandidatoSelecao(
+                id=c.id,
+                nome=c.nome,
+                criterio=CriteriosPrioridade(c.criterio.value),
+            )
+            for c in input.candidatos
+        ]
+        ps = await participante_svc.confirmar_selecao(
+            db,
+            unidade_execucao_id=uuid.UUID(str(input.unidade_execucao_id)),
+            candidatos=candidatos,
+            n_vagas=input.n_vagas,
+            criterios_tecnicos=input.criterios_tecnicos,
+            user=user,
+            ip_address=_ip(info),
+        )
+        return _processo_selecao_to_type(ps)
+
+    @strawberry.mutation(permission_classes=[IsGestorOrAdmin])
+    async def aprovar_plano_entregas(
+        self, info: Info, input: AprovarPlanoEntregasInput
+    ) -> PlanoEntregasType:
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        pe = await pe_svc.aprovar_plano_entregas(
+            db,
+            plano_id=uuid.UUID(str(input.plano_id)),
+            aprovador_user_id=input.aprovador_user_id,
+            user=user,
+            ip_address=_ip(info),
+        )
+        return _pe_to_type(pe)
+
+    @strawberry.mutation(permission_classes=[IsChefiaOrAbove])
+    async def registrar_autorizacao_equipamentos(
+        self, info: Info, input: RegistrarAutorizacaoEquipamentosInput
+    ) -> TermoGuardaEquipamentoType:
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        termo = await participante_svc.registrar_autorizacao_equipamentos(
+            db,
+            participante_id=uuid.UUID(str(input.participante_id)),
+            tcr_id=uuid.UUID(str(input.tcr_id)),
+            descricao_equipamentos=input.descricao_equipamentos,
+            data_autorizacao=input.data_autorizacao,
+            modalidade_execucao=input.modalidade_execucao,
+            user=user,
+            ip_address=_ip(info),
+        )
+        return _termo_guarda_to_type(termo)
+
+    # --- Sprint 2.6 — Afastamentos (TC-M10-008) ---
+
+    @strawberry.mutation(permission_classes=[IsChefiaOrAbove])
+    async def registrar_afastamento(
+        self, info: Info, input: RegistrarAfastamentoInput
+    ) -> AfastamentoType:
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        afa = await participante_svc.registrar_afastamento(
+            db,
+            participante_id=uuid.UUID(str(input.participante_id)),
+            tipo_afastamento=TipoAfastamento(input.tipo_afastamento.value),
+            data_inicio=input.data_inicio,
+            data_fim=input.data_fim,
+            observacao=input.observacao,
+            user=user,
+            ip_address=_ip(info),
+        )
+        return _afastamento_to_type(afa)
 
 
 async def get_context(

@@ -138,6 +138,9 @@ class UnidadeInstituidora(Base):
     criterios_selecao_adicionais: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )
+    escala_customizada_mapeamento: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True
+    )
     procedimento_registro_comparecimento: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )

@@ -52,6 +52,8 @@ class PlanoEntregasType:
     data_termino: date
     avaliacao: Optional[int]
     data_avaliacao: Optional[date]
+    aprovado_por_user_id: Optional[int]
+    data_aprovacao: Optional[date]
 
 
 @strawberry.type
@@ -84,6 +86,7 @@ class PlanoTrabalhoType:
     carga_horaria_disponivel: int
     criterios_avaliacao: str
     plano_entregas_id: Optional[strawberry.ID]
+    contribuicoes: list["ContribuicaoType"]
 
 
 @strawberry.type
@@ -96,6 +99,7 @@ class ContribuicaoType:
     descricao: str
     id_plano_entregas: Optional[str]
     id_entrega: Optional[str]
+    rotulo: Optional[str]
 
 
 @strawberry.type
@@ -167,6 +171,13 @@ class AdicionarContribuicaoInput:
     descricao: str
     id_plano_entregas: Optional[str] = None
     id_entrega: Optional[str] = None
+    rotulo: Optional[str] = None
+
+
+@strawberry.input
+class AprovarPlanoEntregasInput:
+    plano_id: strawberry.ID
+    aprovador_user_id: int
 
 
 @strawberry.input
@@ -197,6 +208,8 @@ def _pe_to_type(pe) -> PlanoEntregasType:  # type: ignore[no-untyped-def]
         data_termino=pe.data_termino,
         avaliacao=pe.avaliacao,
         data_avaliacao=pe.data_avaliacao,
+        aprovado_por_user_id=pe.aprovado_por_user_id,
+        data_aprovacao=pe.data_aprovacao,
     )
 
 
@@ -215,7 +228,24 @@ def _entrega_to_type(e) -> EntregaType:  # type: ignore[no-untyped-def]
     )
 
 
+def _contribuicao_to_type(c) -> ContribuicaoType:  # type: ignore[no-untyped-def]
+    return ContribuicaoType(
+        id=strawberry.ID(str(c.id)),
+        id_contribuicao=c.id_contribuicao,
+        plano_trabalho_id=strawberry.ID(str(c.plano_trabalho_id)),
+        tipo_contribuicao=c.tipo_contribuicao,
+        percentual_contribuicao=c.percentual_contribuicao,
+        descricao=c.descricao,
+        id_plano_entregas=c.id_plano_entregas,
+        id_entrega=c.id_entrega,
+        rotulo=c.rotulo,
+    )
+
+
 def _pt_to_type(pt) -> PlanoTrabalhoType:  # type: ignore[no-untyped-def]
+    # Use __dict__ to avoid triggering lazy load outside of async context
+    raw_contribs = pt.__dict__.get("contribuicoes") or []
+    contribuicoes = [_contribuicao_to_type(c) for c in raw_contribs]
     return PlanoTrabalhoType(
         id=strawberry.ID(str(pt.id)),
         id_plano_trabalho=pt.id_plano_trabalho,
@@ -233,19 +263,7 @@ def _pt_to_type(pt) -> PlanoTrabalhoType:  # type: ignore[no-untyped-def]
         plano_entregas_id=(
             strawberry.ID(str(pt.plano_entregas_id)) if pt.plano_entregas_id else None
         ),
-    )
-
-
-def _contribuicao_to_type(c) -> ContribuicaoType:  # type: ignore[no-untyped-def]
-    return ContribuicaoType(
-        id=strawberry.ID(str(c.id)),
-        id_contribuicao=c.id_contribuicao,
-        plano_trabalho_id=strawberry.ID(str(c.plano_trabalho_id)),
-        tipo_contribuicao=c.tipo_contribuicao,
-        percentual_contribuicao=c.percentual_contribuicao,
-        descricao=c.descricao,
-        id_plano_entregas=c.id_plano_entregas,
-        id_entrega=c.id_entrega,
+        contribuicoes=contribuicoes,
     )
 
 
