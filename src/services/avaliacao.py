@@ -1,0 +1,166 @@
+import uuid
+from datetime import date, datetime
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..models.audit import AuditAction
+from ..models.plano import AvaliacaoRegistrosExecucao, DecisaoRecurso, StatusRecurso
+from ..models.user import User
+from .audit import log_audit
+from .institucional import ValidationError
+
+
+# ---------------------------------------------------------------------------
+# Pure validators
+# ---------------------------------------------------------------------------
+
+
+def validate_justificativa_obrigatoria(
+    avaliacao: int, justificativa: str | None
+) -> None:
+    if avaliacao in (1, 4, 5):
+        if not justificativa or not justificativa.strip():
+            raise ValidationError(
+                "Justificativa obrigatória para avaliações 1 (excepcional),"
+                " 4 (inadequado) e 5 (não executado) (IN24 Art.21 §3º)"
+            )
+
+
+# ---------------------------------------------------------------------------
+# CRUD
+# ---------------------------------------------------------------------------
+
+
+async def _get_avaliacao(
+    db: AsyncSession, avaliacao_id: uuid.UUID
+) -> AvaliacaoRegistrosExecucao:
+    result = await db.execute(
+        select(AvaliacaoRegistrosExecucao).where(
+            AvaliacaoRegistrosExecucao.id == avaliacao_id
+        )
+    )
+    a = result.scalar_one_or_none()
+    if a is None:
+        raise ValidationError("AvaliacaoRegistrosExecucao não encontrada")
+    return a
+
+
+async def avaliar_registros_execucao(
+    db: AsyncSession,
+    *,
+    avaliacao_id: uuid.UUID,
+    nota: int,
+    data_avaliacao: date,
+    justificativa: str | None = None,
+    user: User | None = None,
+    ip_address: str | None = None,
+) -> AvaliacaoRegistrosExecucao:
+    if nota not in range(1, 6):
+        raise ValidationError("Avaliação deve ser entre 1 e 5")
+    validate_justificativa_obrigatoria(nota, justificativa)
+
+    a = await _get_avaliacao(db, avaliacao_id)
+    if a.avaliacao_registros_execucao is not None:
+        raise ValidationError("Avaliação já foi registrada")
+
+    a.avaliacao_registros_execucao = nota
+    a.data_avaliacao_registros_execucao = data_avaliacao
+    a.avaliacao_justificativa = justificativa
+
+    # Avaliações 4 ou 5 abrem janela de recurso
+    if nota in (4, 5):
+        a.status_recurso = StatusRecurso.ABERTO
+
+    await log_audit(
+        db,
+        table_name="avaliacoes_registros_execucao",
+        record_id=str(a.id),
+        action=AuditAction.UPDATE,
+        user=user,
+        new_values={"avaliacao": nota, "data_avaliacao": str(data_avaliacao)},
+        ip_address=ip_address,
+    )
+    await db.commit()
+    await db.refresh(a)
+    return a
+
+
+async def abrir_recurso(
+    db: AsyncSession,
+    *,
+    avaliacao_id: uuid.UUID,
+    texto: str,
+    user: User | None = None,
+    ip_address: str | None = None,
+) -> AvaliacaoRegistrosExecucao:
+    a = await _get_avaliacao(db, avaliacao_id)
+    if a.status_recurso != StatusRecurso.ABERTO:
+        raise ValidationError("Não há recurso cabível para esta avaliação")
+    if not texto or not texto.strip():
+        raise ValidationError("Texto do recurso é obrigatório")
+    if a.recurso_data is not None:
+        raise ValidationError("Recurso já foi aberto")
+
+    a.recurso_texto = texto
+    a.recurso_data = datetime.utcnow()
+
+    await log_audit(
+        db,
+        table_name="avaliacoes_registros_execucao",
+        record_id=str(a.id),
+        action=AuditAction.UPDATE,
+        user=user,
+        new_values={"recurso": "aberto"},
+        ip_address=ip_address,
+    )
+    await db.commit()
+    await db.refresh(a)
+    return a
+
+
+async def decidir_recurso(
+    db: AsyncSession,
+    *,
+    avaliacao_id: uuid.UUID,
+    decisao: DecisaoRecurso,
+    justificativa: str | None = None,
+    nova_nota: int | None = None,
+    user: User | None = None,
+    ip_address: str | None = None,
+) -> AvaliacaoRegistrosExecucao:
+    a = await _get_avaliacao(db, avaliacao_id)
+    if a.recurso_data is None:
+        raise ValidationError("Participante ainda não abriu recurso")
+    if a.recurso_decisao is not None:
+        raise ValidationError("Recurso já foi decidido")
+
+    if decisao == DecisaoRecurso.NAO_ACATADO:
+        if not justificativa or not justificativa.strip():
+            raise ValidationError(
+                "Justificativa obrigatória ao não acatar recurso (IN24 Art.21 §5º)"
+            )
+    elif decisao == DecisaoRecurso.ACATADO and nova_nota is not None:
+        if nova_nota not in range(1, 6):
+            raise ValidationError("Nova nota deve ser entre 1 e 5")
+        validate_justificativa_obrigatoria(nova_nota, justificativa)
+        a.avaliacao_registros_execucao = nova_nota
+        a.avaliacao_justificativa = justificativa
+
+    a.recurso_decisao = decisao
+    a.recurso_decisao_justificativa = justificativa
+    a.recurso_decisao_data = datetime.utcnow()
+    a.status_recurso = StatusRecurso.ENCERRADO
+
+    await log_audit(
+        db,
+        table_name="avaliacoes_registros_execucao",
+        record_id=str(a.id),
+        action=AuditAction.UPDATE,
+        user=user,
+        new_values={"recurso_decisao": decisao.value},
+        ip_address=ip_address,
+    )
+    await db.commit()
+    await db.refresh(a)
+    return a

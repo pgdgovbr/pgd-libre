@@ -12,6 +12,25 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from src.config import get_settings
 from src.models.base import Base
 from src.models.audit import AuditLog  # noqa: F401 — registra metadata
+from src.models.institucional import (  # noqa: F401 — registra metadata
+    AtoAutorizacao,
+    UnidadeAutorizadora,
+    UnidadeExecucao,
+    UnidadeInstituidora,
+)
+from src.models.notificacao import Notificacao  # noqa: F401 — registra metadata
+from src.models.participante import (  # noqa: F401 — registra metadata
+    Convocacao,
+    Participante,
+    TCR,
+)
+from src.models.plano import (  # noqa: F401 — registra metadata
+    AvaliacaoRegistrosExecucao,
+    Contribuicao,
+    Entrega,
+    PlanoEntregas,
+    PlanoTrabalho,
+)
 from src.models.user import User  # noqa: F401 — registra metadata
 
 config = context.config
