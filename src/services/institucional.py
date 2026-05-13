@@ -352,6 +352,15 @@ async def suspender_pgd(
     except ImportError:
         pass
 
+    from ..models.notificacao import TipoEvento
+    from .notificacao import criar_notificacao
+
+    await criar_notificacao(
+        db,
+        tipo_evento=TipoEvento.PGD_SUSPENSO_REVOGADO,
+        conteudo=f"O PGD da unidade instituidora foi suspenso. Motivo: {motivo}",
+        contexto={"unidade_instituidora_id": str(unidade_instituidora_id), "motivo": motivo},
+    )
     await db.commit()
     await db.refresh(ui)
     return ui
@@ -374,14 +383,30 @@ async def get_unidade_instituidora(
 async def listar_resultados_publicos(
     db: AsyncSession,
 ) -> list[dict]:
-    result = await db.execute(select(UnidadeExecucao))
-    unidades = result.scalars().all()
+    from sqlalchemy import Integer, case, func
+    from ..models.plano import PlanoEntregas, STATUS_PE_AVALIADO
+
+    result = await db.execute(
+        select(
+            UnidadeExecucao.cod_unidade_executora,
+            UnidadeExecucao.nome,
+            func.count(
+                case((PlanoEntregas.status == STATUS_PE_AVALIADO, PlanoEntregas.id))
+            ).label("total_planos_avaliados"),
+            func.avg(
+                case((PlanoEntregas.avaliacao.isnot(None), PlanoEntregas.avaliacao))
+            ).label("media_avaliacao"),
+        )
+        .outerjoin(PlanoEntregas, PlanoEntregas.unidade_execucao_id == UnidadeExecucao.id)
+        .group_by(UnidadeExecucao.id, UnidadeExecucao.cod_unidade_executora, UnidadeExecucao.nome)
+    )
+    rows = result.all()
     return [
         {
-            "cod_unidade_executora": u.cod_unidade_executora,
-            "nome": u.nome,
-            "total_planos_avaliados": 0,
-            "media_avaliacao": None,
+            "cod_unidade_executora": r.cod_unidade_executora,
+            "nome": r.nome,
+            "total_planos_avaliados": r.total_planos_avaliados or 0,
+            "media_avaliacao": float(r.media_avaliacao) if r.media_avaliacao is not None else None,
         }
-        for u in unidades
+        for r in rows
     ]

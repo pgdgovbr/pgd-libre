@@ -5,10 +5,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.audit import AuditAction
-from ..models.plano import AvaliacaoRegistrosExecucao, DecisaoRecurso, StatusRecurso
+from ..models.participante import Participante
+from ..models.plano import AvaliacaoRegistrosExecucao, DecisaoRecurso, PlanoTrabalho, StatusRecurso
+from ..models.notificacao import TipoEvento
 from ..models.user import User
 from .audit import log_audit
 from .institucional import ValidationError
+from .notificacao import criar_notificacao
 
 
 # ---------------------------------------------------------------------------
@@ -30,6 +33,17 @@ def validate_justificativa_obrigatoria(
 # ---------------------------------------------------------------------------
 # CRUD
 # ---------------------------------------------------------------------------
+
+
+async def _get_email_participante_por_pt(
+    db: AsyncSession, plano_trabalho_id: uuid.UUID
+) -> str | None:
+    r = await db.execute(
+        select(Participante.email)
+        .join(PlanoTrabalho, PlanoTrabalho.participante_id == Participante.id)
+        .where(PlanoTrabalho.id == plano_trabalho_id)
+    )
+    return r.scalar_one_or_none()
 
 
 async def _get_avaliacao(
@@ -72,6 +86,7 @@ async def avaliar_registros_execucao(
     if nota in (4, 5):
         a.status_recurso = StatusRecurso.ABERTO
 
+    p_email = await _get_email_participante_por_pt(db, a.plano_trabalho_id)
     await log_audit(
         db,
         table_name="avaliacoes_registros_execucao",
@@ -80,6 +95,13 @@ async def avaliar_registros_execucao(
         user=user,
         new_values={"avaliacao": nota, "data_avaliacao": str(data_avaliacao)},
         ip_address=ip_address,
+    )
+    await criar_notificacao(
+        db,
+        tipo_evento=TipoEvento.AVALIACAO_REALIZADA,
+        conteudo=f"Sua avaliação do período {a.id_periodo_avaliativo} foi registrada com nota {nota}.",
+        destinatario_email=p_email,
+        contexto={"nota": nota, "periodo": a.id_periodo_avaliativo},
     )
     await db.commit()
     await db.refresh(a)
@@ -105,6 +127,7 @@ async def abrir_recurso(
     a.recurso_texto = texto
     a.recurso_data = datetime.utcnow()
 
+    p_email = await _get_email_participante_por_pt(db, a.plano_trabalho_id)
     await log_audit(
         db,
         table_name="avaliacoes_registros_execucao",
@@ -113,6 +136,14 @@ async def abrir_recurso(
         user=user,
         new_values={"recurso": "aberto"},
         ip_address=ip_address,
+    )
+    await criar_notificacao(
+        db,
+        tipo_evento=TipoEvento.RECURSO_ABERTO,
+        conteudo=f"Recurso foi aberto para a avaliação do período {a.id_periodo_avaliativo}.",
+        destinatario_user_id=user.id if user else None,
+        destinatario_email=p_email if not user else None,
+        contexto={"avaliacao_id": str(a.id)},
     )
     await db.commit()
     await db.refresh(a)
@@ -152,6 +183,7 @@ async def decidir_recurso(
     a.recurso_decisao_data = datetime.utcnow()
     a.status_recurso = StatusRecurso.ENCERRADO
 
+    p_email = await _get_email_participante_por_pt(db, a.plano_trabalho_id)
     await log_audit(
         db,
         table_name="avaliacoes_registros_execucao",
@@ -160,6 +192,13 @@ async def decidir_recurso(
         user=user,
         new_values={"recurso_decisao": decisao.value},
         ip_address=ip_address,
+    )
+    await criar_notificacao(
+        db,
+        tipo_evento=TipoEvento.RECURSO_DECIDIDO,
+        conteudo=f"Recurso decidido: {decisao.value}.",
+        destinatario_email=p_email,
+        contexto={"decisao": decisao.value, "avaliacao_id": str(a.id)},
     )
     await db.commit()
     await db.refresh(a)

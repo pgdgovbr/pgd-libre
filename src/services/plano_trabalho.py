@@ -6,7 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.audit import AuditAction
-from ..models.participante import StatusTCR, TCR
+from ..models.notificacao import TipoEvento
+from ..models.participante import Participante, StatusTCR, TCR
 from ..models.plano import (
     STATUS_PT_APROVADO,
     STATUS_PT_CANCELADO,
@@ -21,6 +22,7 @@ from ..models.institucional import OrigemUnidade
 from ..models.user import User
 from .audit import log_audit
 from .institucional import ValidationError
+from .notificacao import criar_notificacao
 
 MIN_DATA_INICIO_PT = date(2023, 7, 31)
 
@@ -172,6 +174,10 @@ async def criar_plano_trabalho(
     )
     db.add(pt)
     await db.flush()
+    email_res = await db.execute(
+        select(Participante.email).where(Participante.id == participante_id)
+    )
+    p_email = email_res.scalar_one_or_none()
     await log_audit(
         db,
         table_name="planos_trabalho",
@@ -180,6 +186,13 @@ async def criar_plano_trabalho(
         user=user,
         new_values={"id_plano_trabalho": id_plano_trabalho, "status": STATUS_PT_APROVADO},
         ip_address=ip_address,
+    )
+    await criar_notificacao(
+        db,
+        tipo_evento=TipoEvento.PLANO_APROVADO,
+        conteudo=f"Seu plano de trabalho {id_plano_trabalho} foi aprovado.",
+        destinatario_email=p_email,
+        contexto={"id_plano_trabalho": id_plano_trabalho},
     )
     await db.commit()
     await db.refresh(pt)

@@ -452,3 +452,262 @@ async def test_criar_convocacao_sem_antecedencia(db: AsyncSession):
             motivo="Urgente",
             user=admin,
         )
+
+
+# ---------------------------------------------------------------------------
+# GraphQL mutations via HTTP
+# ---------------------------------------------------------------------------
+
+
+async def test_gql_cadastrar_participante(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ui, ue = await _make_unidade_com_participante_setup(db, admin)
+
+    query = f"""
+    mutation {{
+      cadastrarParticipante(input: {{
+        origemUnidade: SIAPE
+        codUnidadeAutorizadora: {ua.cod_unidade_autorizadora}
+        codUnidadeLotacao: {ue.cod_unidade_executora}
+        matriculaSiape: "1234568"
+        codUnidadeInstituidora: {ui.cod_unidade_instituidora}
+        cpf: "11144477735"
+        nome: "GQL Test"
+        email: "gql@t.com"
+        modalidadeExecucao: 1
+        dataAssinaturaTcr: "2024-03-01"
+        tipoVinculo: EFETIVO
+        unidadeExecucaoId: "{ue.id}"
+      }}) {{
+        id
+        nome
+        matriculaSiape
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["cadastrarParticipante"]
+    assert payload["nome"] == "GQL Test"
+    assert payload["matriculaSiape"] == "1234568"
+
+
+async def test_gql_cadastrar_participante_cpf_invalido(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ui, ue = await _make_unidade_com_participante_setup(db, admin)
+
+    query = f"""
+    mutation {{
+      cadastrarParticipante(input: {{
+        origemUnidade: SIAPE
+        codUnidadeAutorizadora: {ua.cod_unidade_autorizadora}
+        codUnidadeLotacao: {ue.cod_unidade_executora}
+        matriculaSiape: "9999999"
+        codUnidadeInstituidora: {ui.cod_unidade_instituidora}
+        cpf: "00000000000"
+        nome: "Inválido"
+        email: "inv@t.com"
+        modalidadeExecucao: 1
+        dataAssinaturaTcr: "2024-03-01"
+        tipoVinculo: EFETIVO
+        unidadeExecucaoId: "{ue.id}"
+      }}) {{ id }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" in data
+
+
+async def test_gql_desligar_participante(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    p, ue = await _setup_participante_com_tcr_ativo(db, admin)
+
+    query = f"""
+    mutation {{
+      desligarParticipante(
+        participanteId: "{p.id}"
+        motivo: A_PEDIDO
+      ) {{
+        id
+        situacao
+        dataDesligamento
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["desligarParticipante"]
+    assert payload["situacao"] == 0
+    assert payload["dataDesligamento"] is not None
+
+
+async def test_gql_pactuar_tcr(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ui, ue = await _make_unidade_com_participante_setup(db, admin)
+    p = await cadastrar_participante(
+        db,
+        origem_unidade=OrigemUnidade.SIAPE,
+        cod_unidade_autorizadora=ua.cod_unidade_autorizadora,
+        cod_unidade_lotacao=ue.cod_unidade_executora,
+        matricula_siape="1234567",
+        cod_unidade_instituidora=ui.cod_unidade_instituidora,
+        cpf="11144477735",
+        nome="TCR GQL",
+        email="tcrgql@t.com",
+        modalidade_execucao=1,
+        data_assinatura_tcr=date(2024, 3, 1),
+        tipo_vinculo=TipoVinculo.EFETIVO,
+        unidade_execucao_id=ue.id,
+        user=admin,
+    )
+
+    query = f"""
+    mutation {{
+      pactuarTcr(
+        participanteId: "{p.id}"
+        input: {{
+          modalidadeExecucao: 1
+          regimeExecucao: INTEGRAL
+          prazoAntecedenciaConvocacaoDias: 5
+          canaisComunicacao: ["email"]
+          responsabilidades: "R"
+          cienciaInstalacoesErgonomia: true
+          cienciaNaoDireitoAdquirido: true
+          cienciaCusteioEstrutura: true
+        }}
+      ) {{
+        id
+        status
+        regimeExecucao
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["pactuarTcr"]
+    assert payload["status"] == "PENDENTE"
+    assert payload["regimeExecucao"] == "INTEGRAL"
+
+
+async def test_gql_assinar_tcr_chefia(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ui, ue = await _make_unidade_com_participante_setup(db, admin)
+    p = await cadastrar_participante(
+        db,
+        origem_unidade=OrigemUnidade.SIAPE,
+        cod_unidade_autorizadora=ua.cod_unidade_autorizadora,
+        cod_unidade_lotacao=ue.cod_unidade_executora,
+        matricula_siape="1234567",
+        cod_unidade_instituidora=ui.cod_unidade_instituidora,
+        cpf="11144477735",
+        nome="Sign GQL",
+        email="sign@t.com",
+        modalidade_execucao=1,
+        data_assinatura_tcr=date(2024, 3, 1),
+        tipo_vinculo=TipoVinculo.EFETIVO,
+        unidade_execucao_id=ue.id,
+        user=admin,
+    )
+    tcr = await pactu_tcr(
+        db,
+        participante_id=p.id,
+        chefia_user_id=admin.id,
+        modalidade_execucao=1,
+        regime_execucao=RegimeExecucao.INTEGRAL,
+        prazo_antecedencia_convocacao_dias=5,
+        canais_comunicacao=["email"],
+        responsabilidades="R",
+        ciencia_instalacoes_ergonomia=True,
+        ciencia_nao_direito_adquirido=True,
+        ciencia_custeio_estrutura=True,
+        user=admin,
+    )
+
+    query = f"""
+    mutation {{
+      assinarTcrChefia(tcrId: "{tcr.id}") {{
+        id
+        status
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    assert data["data"]["assinarTcrChefia"]["status"] == "ATIVO"
+
+
+async def test_gql_criar_convocacao(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    p, ue = await _setup_participante_com_tcr_ativo(db, admin)
+
+    today = date.today()
+    conv_data = today + timedelta(days=7)
+
+    query = f"""
+    mutation {{
+      criarConvocacao(
+        participanteId: "{p.id}"
+        unidadeExecucaoId: "{ue.id}"
+        input: {{
+          canalComunicacao: "email"
+          dataConvocacao: "{today}"
+          dataComparecimentoPrevista: "{conv_data}"
+          horarioComparecimento: "09:00"
+          localComparecimento: "Sala 1"
+          periodoPresencialInicio: "{conv_data}"
+          periodoPresencialFim: "{conv_data + timedelta(days=2)}"
+          motivo: "Reunião GQL"
+        }}
+      ) {{
+        id
+        status
+        motivo
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["criarConvocacao"]
+    assert payload["status"] == "PENDENTE"
+    assert payload["motivo"] == "Reunião GQL"
+
+
+async def test_gql_query_participante(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    p, ue = await _setup_participante_com_tcr_ativo(db, admin)
+
+    query = f"""
+    query {{
+      participante(id: "{p.id}") {{
+        id
+        nome
+        tipoVinculo
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    p_data = data["data"]["participante"]
+    assert p_data["nome"] == "Conv Test"
+    assert p_data["tipoVinculo"] == "EFETIVO"

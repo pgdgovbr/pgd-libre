@@ -32,7 +32,9 @@ from src.services.plano_entregas import (
     validate_sem_sobreposicao_pe,
 )
 
-from .conftest import persist_user
+from httpx import AsyncClient
+
+from .conftest import persist_user, set_auth_cookie
 
 
 # ---------------------------------------------------------------------------
@@ -323,3 +325,166 @@ async def test_criar_entrega(db: AsyncSession):
     )
     assert e.id is not None
     assert e.nome_entrega == "Relatório Anual"
+
+
+# ---------------------------------------------------------------------------
+# GraphQL mutations via HTTP
+# ---------------------------------------------------------------------------
+
+
+async def test_gql_criar_plano_entregas(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ue = await _make_unidade_execucao(db, admin)
+
+    query = f"""
+    mutation {{
+      criarPlanoEntregas(input: {{
+        idPlanoEntregas: "PE-GQL-001"
+        origemUnidade: SIAPE
+        codUnidadeAutorizadora: {ua.cod_unidade_autorizadora}
+        codUnidadeInstituidora: 100
+        codUnidadeExecutora: {ue.cod_unidade_executora}
+        unidadeExecucaoId: "{ue.id}"
+        dataInicio: "2024-01-01"
+        dataTermino: "2024-12-31"
+      }}) {{
+        id
+        idPlanoEntregas
+        status
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["criarPlanoEntregas"]
+    assert payload["idPlanoEntregas"] == "PE-GQL-001"
+    assert payload["status"] == 2  # STATUS_PE_APROVADO
+
+
+async def test_gql_ciclo_vida_plano_entregas(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ue = await _make_unidade_execucao(db, admin)
+
+    # criar PE
+    create_q = f"""
+    mutation {{
+      criarPlanoEntregas(input: {{
+        idPlanoEntregas: "PE-CICLO"
+        origemUnidade: SIAPE
+        codUnidadeAutorizadora: {ua.cod_unidade_autorizadora}
+        codUnidadeInstituidora: 100
+        codUnidadeExecutora: {ue.cod_unidade_executora}
+        unidadeExecucaoId: "{ue.id}"
+        dataInicio: "2024-01-01"
+        dataTermino: "2024-06-30"
+      }}) {{ id }}
+    }}
+    """
+    r1 = await client.post("/graphql", json={"query": create_q})
+    pe_id = r1.json()["data"]["criarPlanoEntregas"]["id"]
+
+    # criar entrega
+    entrega_q = f"""
+    mutation {{
+      criarEntrega(
+        planoEntregasId: "{pe_id}"
+        input: {{
+          idEntrega: "E-CICLO-001"
+          nomeEntrega: "Relatório GQL"
+          metaEntrega: 1
+          tipoMeta: UNIDADE
+          dataEntrega: "2024-06-15"
+          nomeUnidadeDemandante: "Chefia"
+          nomeUnidadeDestinataria: "Min."
+        }}
+      ) {{ id nomeEntrega }}
+    }}
+    """
+    r2 = await client.post("/graphql", json={"query": entrega_q})
+    assert "errors" not in r2.json()
+
+    # iniciar execução
+    iniciar_q = f"""
+    mutation {{ iniciarExecucaoPlanoEntregas(planoId: "{pe_id}") {{ id status }} }}
+    """
+    r3 = await client.post("/graphql", json={"query": iniciar_q})
+    assert r3.json()["data"]["iniciarExecucaoPlanoEntregas"]["status"] == 3
+
+    # concluir
+    concluir_q = f"""
+    mutation {{ concluirPlanoEntregas(planoId: "{pe_id}") {{ id status }} }}
+    """
+    r4 = await client.post("/graphql", json={"query": concluir_q})
+    assert r4.json()["data"]["concluirPlanoEntregas"]["status"] == 4
+
+    # avaliar
+    avaliar_q = f"""
+    mutation {{
+      avaliarPlanoEntregas(planoId: "{pe_id}" avaliacao: 4 dataAvaliacao: "2024-07-15") {{
+        id status avaliacao
+      }}
+    }}
+    """
+    r5 = await client.post("/graphql", json={"query": avaliar_q})
+    assert "errors" not in r5.json()
+    payload = r5.json()["data"]["avaliarPlanoEntregas"]
+    assert payload["status"] == 5
+    assert payload["avaliacao"] == 4
+
+
+async def test_gql_cancelar_plano_entregas(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ue = await _make_unidade_execucao(db, admin)
+
+    create_q = f"""
+    mutation {{
+      criarPlanoEntregas(input: {{
+        idPlanoEntregas: "PE-CAN-GQL"
+        origemUnidade: SIAPE
+        codUnidadeAutorizadora: {ua.cod_unidade_autorizadora}
+        codUnidadeInstituidora: 100
+        codUnidadeExecutora: {ue.cod_unidade_executora}
+        unidadeExecucaoId: "{ue.id}"
+        dataInicio: "2024-01-01"
+        dataTermino: "2024-06-30"
+      }}) {{ id }}
+    }}
+    """
+    r1 = await client.post("/graphql", json={"query": create_q})
+    pe_id = r1.json()["data"]["criarPlanoEntregas"]["id"]
+
+    cancel_q = f"""
+    mutation {{ cancelarPlanoEntregas(planoId: "{pe_id}") {{ id status }} }}
+    """
+    r2 = await client.post("/graphql", json={"query": cancel_q})
+    assert "errors" not in r2.json()
+    assert r2.json()["data"]["cancelarPlanoEntregas"]["status"] == 1  # STATUS_PE_CANCELADO
+
+
+async def test_gql_query_plano_entregas(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ue = await _make_unidade_execucao(db, admin)
+    pe = await _criar_pe(db, admin, ue, cod=99)
+
+    query = f"""
+    query {{
+      planoEntregas(id: "{pe.id}") {{
+        id
+        idPlanoEntregas
+        status
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["planoEntregas"]
+    assert payload["idPlanoEntregas"] == "PE-99"
+    assert payload["status"] == 2

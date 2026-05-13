@@ -31,7 +31,9 @@ from src.services.plano_trabalho import (
     registrar_execucao,
 )
 
-from .conftest import persist_user
+from httpx import AsyncClient
+
+from .conftest import persist_user, set_auth_cookie
 
 
 # ---------------------------------------------------------------------------
@@ -355,3 +357,130 @@ async def test_decidir_recurso_nao_acatado_sem_justificativa(db: AsyncSession):
             justificativa=None,
             user=admin,
         )
+
+
+# ---------------------------------------------------------------------------
+# GraphQL mutations via HTTP
+# ---------------------------------------------------------------------------
+
+
+async def test_gql_avaliar_registros_execucao_nota_3(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    are = await _setup_avaliacao(db, admin)
+
+    query = f"""
+    mutation {{
+      avaliarRegistrosExecucao(
+        avaliacaoId: "{are.id}"
+        nota: 3
+        dataAvaliacao: "2024-04-10"
+      ) {{
+        id
+        avaliacaoRegistrosExecucao
+        statusRecurso
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["avaliarRegistrosExecucao"]
+    assert payload["avaliacaoRegistrosExecucao"] == 3
+    assert payload["statusRecurso"] is None
+
+
+async def test_gql_avaliar_nota_invalida(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    are = await _setup_avaliacao(db, admin)
+
+    query = f"""
+    mutation {{
+      avaliarRegistrosExecucao(
+        avaliacaoId: "{are.id}"
+        nota: 6
+        dataAvaliacao: "2024-04-10"
+      ) {{ id }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" in data
+
+
+async def test_gql_fluxo_recurso_nao_acatado(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    are = await _setup_avaliacao(db, admin)
+
+    # avaliar com nota 5 (abre recurso)
+    await avaliar_registros_execucao(
+        db, avaliacao_id=are.id, nota=5, data_avaliacao=date(2024, 4, 10),
+        justificativa="Não executou", user=admin,
+    )
+
+    # abrir recurso
+    abrir_q = f"""
+    mutation {{
+      abrirRecurso(avaliacaoId: "{are.id}" texto: "Discordo GQL") {{
+        id recursoTexto statusRecurso
+      }}
+    }}
+    """
+    r1 = await client.post("/graphql", json={"query": abrir_q})
+    assert "errors" not in r1.json()
+    assert r1.json()["data"]["abrirRecurso"]["statusRecurso"] == "ABERTO"
+
+    # decidir não acatado
+    decidir_q = f"""
+    mutation {{
+      decidirRecurso(
+        avaliacaoId: "{are.id}"
+        decisao: NAO_ACATADO
+        justificativa: "Mantida a decisão"
+      ) {{
+        id recursoDecisao statusRecurso avaliacaoRegistrosExecucao
+      }}
+    }}
+    """
+    r2 = await client.post("/graphql", json={"query": decidir_q})
+    assert "errors" not in r2.json()
+    payload = r2.json()["data"]["decidirRecurso"]
+    assert payload["recursoDecisao"] == "NAO_ACATADO"
+    assert payload["statusRecurso"] == "ENCERRADO"
+    assert payload["avaliacaoRegistrosExecucao"] == 5
+
+
+async def test_gql_fluxo_recurso_acatado_muda_nota(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    are = await _setup_avaliacao(db, admin)
+
+    await avaliar_registros_execucao(
+        db, avaliacao_id=are.id, nota=4, data_avaliacao=date(2024, 4, 10),
+        justificativa="Inadequado", user=admin,
+    )
+    await abrir_recurso(db, avaliacao_id=are.id, texto="Tenho evidências", user=admin)
+
+    decidir_q = f"""
+    mutation {{
+      decidirRecurso(
+        avaliacaoId: "{are.id}"
+        decisao: ACATADO
+        novaNota: 3
+      ) {{
+        id recursoDecisao statusRecurso avaliacaoRegistrosExecucao
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": decidir_q})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["decidirRecurso"]
+    assert payload["recursoDecisao"] == "ACATADO"
+    assert payload["avaliacaoRegistrosExecucao"] == 3
+    assert payload["statusRecurso"] == "ENCERRADO"

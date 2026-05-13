@@ -36,7 +36,9 @@ from src.services.plano_trabalho import (
     validate_tipo_contribuicao,
 )
 
-from .conftest import persist_user
+from httpx import AsyncClient
+
+from .conftest import persist_user, set_auth_cookie
 
 
 # ---------------------------------------------------------------------------
@@ -398,3 +400,158 @@ async def test_registrar_execucao(db: AsyncSession):
     )
     assert are.id is not None
     assert are.data_registro_participante is not None
+
+
+# ---------------------------------------------------------------------------
+# GraphQL mutations via HTTP
+# ---------------------------------------------------------------------------
+
+
+async def test_gql_criar_plano_trabalho(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ui, ue, p = await _setup_full(db, admin)
+
+    query = f"""
+    mutation {{
+      criarPlanoTrabalho(
+        participanteId: "{p.id}"
+        input: {{
+          idPlanoTrabalho: "PT-GQL-001"
+          origemUnidade: SIAPE
+          codUnidadeAutorizadora: {ua.cod_unidade_autorizadora}
+          codUnidadeExecutora: {ue.cod_unidade_executora}
+          codUnidadeLotacaoParticipante: {ue.cod_unidade_executora}
+          cpfParticipante: "{p.cpf}"
+          matriculaSiape: "{p.matricula_siape}"
+          dataInicio: "2024-03-01"
+          dataTermino: "2024-12-31"
+          cargaHorariaDisponivel: 160
+          criteriosAvaliacao: "Critérios GQL"
+        }}
+      ) {{
+        id
+        idPlanoTrabalho
+        status
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["criarPlanoTrabalho"]
+    assert payload["idPlanoTrabalho"] == "PT-GQL-001"
+    assert payload["status"] == 2  # STATUS_PT_APROVADO
+
+
+async def test_gql_adicionar_contribuicao(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ui, ue, p = await _setup_full(db, admin)
+    pt = await _criar_pt(db, admin, ua, ue, p, cod="PT-CONTRIB")
+
+    query = f"""
+    mutation {{
+      adicionarContribuicao(
+        planoTrabalhoId: "{pt.id}"
+        input: {{
+          idContribuicao: "C-GQL-001"
+          tipoContribuicao: 3
+          percentualContribuicao: 100
+          descricao: "Contribuição GQL"
+        }}
+      ) {{
+        id
+        idContribuicao
+        percentualContribuicao
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["adicionarContribuicao"]
+    assert payload["idContribuicao"] == "C-GQL-001"
+    assert payload["percentualContribuicao"] == 100
+
+
+async def test_gql_iniciar_cancelar_plano_trabalho(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ui, ue, p = await _setup_full(db, admin)
+    pt = await _criar_pt(db, admin, ua, ue, p, cod="PT-SM-GQL")
+
+    iniciar_q = f"""
+    mutation {{ iniciarExecucaoPlanoTrabalho(planoId: "{pt.id}") {{ id status }} }}
+    """
+    r1 = await client.post("/graphql", json={"query": iniciar_q})
+    assert "errors" not in r1.json()
+    assert r1.json()["data"]["iniciarExecucaoPlanoTrabalho"]["status"] == 3  # STATUS_PT_EM_EXECUCAO
+
+    # create a separate PT to cancel (can't cancel one in execucao without specific service)
+    pt2 = await _criar_pt(db, admin, ua, ue, p, cod="PT-CAN-GQL", data_inicio=date(2025, 1, 1), data_termino=date(2025, 12, 31))
+    cancel_q = f"""
+    mutation {{ cancelarPlanoTrabalho(planoId: "{pt2.id}") {{ id status }} }}
+    """
+    r2 = await client.post("/graphql", json={"query": cancel_q})
+    assert "errors" not in r2.json()
+    assert r2.json()["data"]["cancelarPlanoTrabalho"]["status"] == 1  # STATUS_PT_CANCELADO
+
+
+async def test_gql_registrar_execucao(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ui, ue, p = await _setup_full(db, admin)
+    pt = await _criar_pt(db, admin, ua, ue, p, cod="PT-EXEC-GQL")
+    pt = await iniciar_execucao_pt(db, plano_id=pt.id, user=admin)
+
+    query = f"""
+    mutation {{
+      registrarExecucao(
+        planoTrabalhoId: "{pt.id}"
+        input: {{
+          idPeriodoAvaliativo: "P-GQL-001"
+          dataInicioPeriodoAvaliativo: "2024-03-01"
+          dataFimPeriodoAvaliativo: "2024-03-31"
+          descricaoExecucao: "Executei GQL"
+        }}
+      ) {{
+        id
+        idPeriodoAvaliativo
+        descricaoExecucao
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["registrarExecucao"]
+    assert payload["idPeriodoAvaliativo"] == "P-GQL-001"
+    assert payload["descricaoExecucao"] == "Executei GQL"
+
+
+async def test_gql_query_plano_trabalho(client: AsyncClient, db: AsyncSession):
+    admin = await persist_user(db, email="admin@t.com", role=UserRole.ADMIN)
+    set_auth_cookie(client, admin)
+    ua, ui, ue, p = await _setup_full(db, admin)
+    pt = await _criar_pt(db, admin, ua, ue, p, cod="PT-QUERY-GQL")
+
+    query = f"""
+    query {{
+      planoTrabalho(id: "{pt.id}") {{
+        id
+        idPlanoTrabalho
+        status
+      }}
+    }}
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "errors" not in data
+    payload = data["data"]["planoTrabalho"]
+    assert payload["idPlanoTrabalho"] == "PT-QUERY-GQL"
+    assert payload["status"] == 2

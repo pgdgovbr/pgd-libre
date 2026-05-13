@@ -17,9 +17,11 @@ from ..models.participante import (
     TCR,
     TipoVinculo,
 )
+from ..models.notificacao import TipoEvento
 from ..models.user import User
 from .audit import log_audit
 from .institucional import ValidationError
+from .notificacao import criar_notificacao
 
 MIN_DATA_ASSINATURA_TCR = date(2023, 7, 31)
 
@@ -234,6 +236,13 @@ async def desligar_participante(
         new_values={"situacao": 0, "motivo_desligamento": motivo.value},
         ip_address=ip_address,
     )
+    await criar_notificacao(
+        db,
+        tipo_evento=TipoEvento.DESLIGAMENTO_REGISTRADO,
+        conteudo="Seu desligamento do PGD foi registrado.",
+        destinatario_email=p.email,
+        contexto={"motivo": motivo.value},
+    )
     await db.commit()
     await db.refresh(p)
     return p
@@ -401,6 +410,10 @@ async def criar_convocacao(
     )
     db.add(c)
     await db.flush()
+    email_res = await db.execute(
+        select(Participante.email).where(Participante.id == participante_id)
+    )
+    p_email = email_res.scalar_one_or_none()
     await log_audit(
         db,
         table_name="convocacoes",
@@ -412,6 +425,17 @@ async def criar_convocacao(
             "data_comparecimento_prevista": str(data_comparecimento_prevista),
         },
         ip_address=ip_address,
+    )
+    await criar_notificacao(
+        db,
+        tipo_evento=TipoEvento.CONVOCACAO_EMITIDA,
+        conteudo=f"Você foi convocado para comparecer presencialmente em {data_comparecimento_prevista}.",
+        destinatario_email=p_email,
+        contexto={
+            "data_comparecimento": str(data_comparecimento_prevista),
+            "local": local_comparecimento,
+            "motivo": motivo,
+        },
     )
     await db.commit()
     await db.refresh(c)
