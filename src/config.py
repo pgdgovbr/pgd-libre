@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     MAIL_STARTTLS: bool = False
     MAIL_SSL_TLS: bool = False
 
+    API_PGD_URL: str = ""
+    API_PGD_USERNAME: str = ""
+    API_PGD_PASSWORD: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:
