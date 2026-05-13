@@ -5,6 +5,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .api.health import router as health_router
 from .api.public import router as public_router
+from .api.sync import router as sync_router
 from .auth.router import router as auth_router
 from .config import get_settings
 from .graphql.schema import graphql_router
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router, tags=["infra"])
     app.include_router(public_router, tags=["public"])
+    app.include_router(sync_router)
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
     app.include_router(graphql_router, prefix="/graphql")
 

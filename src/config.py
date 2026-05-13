@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     API_PGD_URL: str = ""
     API_PGD_USERNAME: str = ""
     API_PGD_PASSWORD: str = ""
+    SYNC_SECRET: str = "dev-sync-secret"
 
 
 @lru_cache

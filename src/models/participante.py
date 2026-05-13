@@ -85,6 +85,9 @@ class Participante(Base):
     situacao: Mapped[int] = mapped_column(Integer, default=1)  # 0=Inativo, 1=Ativo
     modalidade_execucao: Mapped[int] = mapped_column(Integer)  # 1-5
     data_assinatura_tcr: Mapped[date] = mapped_column(Date)
+    api_sincronizado_em: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     data_ingresso_pgd: Mapped[date | None] = mapped_column(Date, nullable=True)
     data_desligamento: Mapped[date | None] = mapped_column(Date, nullable=True)
     motivo_desligamento: Mapped[MotivoDesligamento | None] = mapped_column(
