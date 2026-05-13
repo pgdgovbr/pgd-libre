@@ -39,6 +39,12 @@ class StatusPgd(enum.StrEnum):
     REVOGADO = "revogado"
 
 
+class Competencia(enum.StrEnum):
+    APROVAR_PLANO_ENTREGAS = "aprovar_plano_entregas"
+    REALIZAR_SELECAO = "realizar_selecao"
+    AVALIAR_REGISTROS = "avaliar_registros"
+
+
 class UnidadeAutorizadora(Base):
     __tablename__ = "unidades_autorizadoras"
     __table_args__ = (
@@ -194,4 +200,29 @@ class UnidadeExecucao(Base):
 
     unidade_instituidora: Mapped["UnidadeInstituidora"] = relationship(
         back_populates="unidades_execucao"
+    )
+
+
+class DelegacaoCompetencia(Base):
+    __tablename__ = "delegacoes_competencia"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    delegante_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    delegatario_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    competencia: Mapped[Competencia] = mapped_column(
+        Enum(Competencia, name="competencia")
+    )
+    unidade_execucao_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("unidades_execucao.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    data_inicio: Mapped[date] = mapped_column(Date)
+    data_fim: Mapped[date | None] = mapped_column(Date, nullable=True)
+    motivo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
     )

@@ -1,12 +1,12 @@
 """Tipos Strawberry e helpers de resolvers para o módulo Institucional (Sprint 1.1)."""
 import enum
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 import strawberry
 
-from ..models.institucional import OrigemUnidade, StatusAto, StatusPgd
+from ..models.institucional import Competencia, OrigemUnidade, StatusAto, StatusPgd
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +32,13 @@ class StatusPgdGql(enum.Enum):
     EM_VIGOR = "em_vigor"
     SUSPENSO = "suspenso"
     REVOGADO = "revogado"
+
+
+@strawberry.enum
+class CompetenciaGql(enum.Enum):
+    APROVAR_PLANO_ENTREGAS = "aprovar_plano_entregas"
+    REALIZAR_SELECAO = "realizar_selecao"
+    AVALIAR_REGISTROS = "avaliar_registros"
 
 
 # ---------------------------------------------------------------------------
@@ -163,4 +170,52 @@ def _ui_to_type(ui) -> UnidadeInstituidoraType:  # type: ignore[no-untyped-def]
         conteudo_minimo_tcr=ui.conteudo_minimo_tcr,
         prazo_antecedencia_convocacao_dias=ui.prazo_antecedencia_convocacao_dias,
         nivel_produtividade_adicional_tt=ui.nivel_produtividade_adicional_tt,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 2.8 — Delegação de competência (RF-037)
+# ---------------------------------------------------------------------------
+
+
+@strawberry.type
+class DelegacaoCompetenciaType:
+    id: strawberry.ID
+    delegante_user_id: int
+    delegatario_user_id: int
+    competencia: CompetenciaGql
+    unidade_execucao_id: Optional[strawberry.ID]
+    data_inicio: date
+    data_fim: Optional[date]
+    motivo: Optional[str]
+    ativo: bool
+    created_at: datetime
+
+
+@strawberry.input
+class DelegarCompetenciaInput:
+    delegatario_user_id: int
+    competencia: CompetenciaGql
+    data_inicio: date
+    data_fim: Optional[date] = None
+    unidade_execucao_id: Optional[strawberry.ID] = None
+    motivo: Optional[str] = None
+
+
+def _delegacao_to_type(d) -> DelegacaoCompetenciaType:  # type: ignore[no-untyped-def]
+    return DelegacaoCompetenciaType(
+        id=strawberry.ID(str(d.id)),
+        delegante_user_id=d.delegante_user_id,
+        delegatario_user_id=d.delegatario_user_id,
+        competencia=CompetenciaGql(d.competencia.value),
+        unidade_execucao_id=(
+            strawberry.ID(str(d.unidade_execucao_id))
+            if d.unidade_execucao_id
+            else None
+        ),
+        data_inicio=d.data_inicio,
+        data_fim=d.data_fim,
+        motivo=d.motivo,
+        ativo=d.ativo,
+        created_at=d.created_at,
     )

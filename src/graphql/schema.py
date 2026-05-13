@@ -10,7 +10,7 @@ from strawberry.types import Info
 
 from ..auth.deps import get_optional_user
 from ..database import get_db
-from ..models.institucional import OrigemUnidade, StatusAto, StatusPgd
+from ..models.institucional import Competencia, OrigemUnidade, StatusAto, StatusPgd
 from ..models.participante import (
     MotivoDesligamento,
     RegimeExecucao,
@@ -31,12 +31,15 @@ from .institucional import (
     CriarAtoAutorizacaoInput,
     CriarUnidadeAutorizadoraInput,
     CriarUnidadeInstituidoraInput,
+    DelegacaoCompetenciaType,
+    DelegarCompetenciaInput,
     OrigemUnidadeGql,
     ResultadoPublicoType,
     StatusAtoGql,
     UnidadeAutorizadoraType,
     UnidadeInstituidoraType,
     _ato_to_type,
+    _delegacao_to_type,
     _ua_to_type,
     _ui_to_type,
 )
@@ -967,7 +970,7 @@ class Mutation:
         )
         return _processo_selecao_to_type(ps)
 
-    @strawberry.mutation(permission_classes=[IsGestorOrAdmin])
+    @strawberry.mutation(permission_classes=[IsChefiaOrAbove])
     async def aprovar_plano_entregas(
         self, info: Info, input: AprovarPlanoEntregasInput
     ) -> PlanoEntregasType:
@@ -1040,6 +1043,46 @@ class Mutation:
             ip_address=_ip(info),
         )
         return _autorizacao_noturna_to_type(auth)
+
+    # --- Sprint 2.8 — Delegação de competência (RF-037) ---
+
+    @strawberry.mutation(permission_classes=[IsAdmin])
+    async def delegar_competencia(
+        self, info: Info, input: DelegarCompetenciaInput
+    ) -> DelegacaoCompetenciaType:
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        d = await svc.delegar_competencia(
+            db,
+            delegante_user_id=user.id,
+            delegatario_user_id=input.delegatario_user_id,
+            competencia=Competencia(input.competencia.value),
+            unidade_execucao_id=(
+                uuid.UUID(str(input.unidade_execucao_id))
+                if input.unidade_execucao_id
+                else None
+            ),
+            data_inicio=input.data_inicio,
+            data_fim=input.data_fim,
+            motivo=input.motivo,
+            user=user,
+            ip_address=_ip(info),
+        )
+        return _delegacao_to_type(d)
+
+    @strawberry.mutation(permission_classes=[IsAdmin])
+    async def revogar_delegacao(
+        self, info: Info, delegacao_id: strawberry.ID
+    ) -> DelegacaoCompetenciaType:
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        d = await svc.revogar_delegacao(
+            db,
+            delegacao_id=uuid.UUID(str(delegacao_id)),
+            user=user,
+            ip_address=_ip(info),
+        )
+        return _delegacao_to_type(d)
 
 
 async def get_context(

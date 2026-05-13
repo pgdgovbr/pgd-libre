@@ -774,3 +774,88 @@ async def test_ju07_retry_envio_api_central(db: AsyncSession, client: AsyncClien
     result = await sincronizar_tudo(db, mock_ok)
     assert result["sucesso"] >= 1
     mock_ok.send_participante.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# JU-08 — Delegação de competência (RF-037)
+# ---------------------------------------------------------------------------
+
+
+async def test_ju08_delegacao_aprovar_pe(db: AsyncSession, client: AsyncClient) -> None:
+    """JU-08: admin delega APROVAR_PLANO_ENTREGAS para chefia via GQL →
+    chefia (que normalmente não aprova PE) aprova via GQL → audit log
+    contém duas operações (delegação + aprovação).
+    """
+    admin = await persist_user(db, email="ju08_a@test.gov.br", role=UserRole.ADMIN)
+    chefia = await persist_user(db, email="ju08_c@test.gov.br", role=UserRole.CHEFE_IMEDIATO)
+    ua, ui, ue = await _base(db, admin, cod_ua=308001)
+
+    # PE a ser aprovado
+    pe = await _pe_com_entrega(db, admin, ue, ua, ui, "JU08")
+
+    # 1. admin delega APROVAR_PLANO_ENTREGAS para chefia via GQL
+    set_auth_cookie(client, admin)
+    r_deleg = await client.post(
+        "/graphql",
+        json={
+            "query": """
+            mutation($input: DelegarCompetenciaInput!) {
+              delegarCompetencia(input: $input) { id ativo }
+            }
+            """,
+            "variables": {
+                "input": {
+                    "delegatarioUserId": chefia.id,
+                    "competencia": "APROVAR_PLANO_ENTREGAS",
+                    "unidadeExecucaoId": str(ue.id),
+                    "dataInicio": "2026-01-01",
+                    "dataFim": "2026-12-31",
+                    "motivo": "JU-08",
+                }
+            },
+        },
+        headers={"user-agent": "pytest"},
+    )
+    assert r_deleg.status_code == 200
+    assert r_deleg.json().get("errors") is None, r_deleg.json().get("errors")
+    deleg_id = r_deleg.json()["data"]["delegarCompetencia"]["id"]
+
+    # 2. chefia (agora delegatária) aprova o PE via GQL
+    set_auth_cookie(client, chefia)
+    r_aprov = await client.post(
+        "/graphql",
+        json={
+            "query": """
+            mutation($input: AprovarPlanoEntregasInput!) {
+              aprovarPlanoEntregas(input: $input) {
+                id
+                aprovadoPorUserId
+                dataAprovacao
+              }
+            }
+            """,
+            "variables": {
+                "input": {
+                    "planoId": str(pe.id),
+                    "aprovadorUserId": chefia.id,
+                }
+            },
+        },
+        headers={"user-agent": "pytest"},
+    )
+    assert r_aprov.status_code == 200
+    assert r_aprov.json().get("errors") is None, r_aprov.json().get("errors")
+    aprov = r_aprov.json()["data"]["aprovarPlanoEntregas"]
+    assert aprov["aprovadoPorUserId"] == chefia.id
+    assert aprov["dataAprovacao"] is not None
+
+    # 3. audit log contém pelo menos um registro de delegação (criada pelo admin)
+    #    e um registro da aprovação do PE (feita pela chefia)
+    audit_count_admin = await db.execute(
+        select(func.count()).select_from(AuditLog).where(AuditLog.user_id == admin.id)
+    )
+    audit_count_chefia = await db.execute(
+        select(func.count()).select_from(AuditLog).where(AuditLog.user_id == chefia.id)
+    )
+    assert audit_count_admin.scalar_one() >= 1  # delegação
+    assert audit_count_chefia.scalar_one() >= 1  # aprovação do PE

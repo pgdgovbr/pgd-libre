@@ -1,12 +1,14 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.audit import AuditAction
 from ..models.institucional import (
     AtoAutorizacao,
+    Competencia,
+    DelegacaoCompetencia,
     OrigemUnidade,
     StatusAto,
     StatusPgd,
@@ -412,3 +414,125 @@ async def listar_resultados_publicos(
         }
         for r in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Delegação de competência (RF-037)
+# ---------------------------------------------------------------------------
+
+
+async def delegar_competencia(
+    db: AsyncSession,
+    *,
+    delegante_user_id: int,
+    delegatario_user_id: int,
+    competencia: Competencia,
+    data_inicio: date,
+    data_fim: date | None = None,
+    unidade_execucao_id: uuid.UUID | None = None,
+    motivo: str | None = None,
+    user: User,
+    ip_address: str | None = None,
+) -> DelegacaoCompetencia:
+    if data_fim is not None and data_fim < data_inicio:
+        raise ValidationError(
+            "Data fim da delegação não pode ser anterior à data de início"
+        )
+    d = DelegacaoCompetencia(
+        delegante_user_id=delegante_user_id,
+        delegatario_user_id=delegatario_user_id,
+        competencia=competencia,
+        unidade_execucao_id=unidade_execucao_id,
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        motivo=motivo,
+        ativo=True,
+    )
+    db.add(d)
+    await db.flush()
+    await log_audit(
+        db,
+        table_name="delegacoes_competencia",
+        record_id=str(d.id),
+        action=AuditAction.CREATE,
+        user=user,
+        new_values={
+            "delegante_user_id": delegante_user_id,
+            "delegatario_user_id": delegatario_user_id,
+            "competencia": competencia.value,
+            "unidade_execucao_id": (
+                str(unidade_execucao_id) if unidade_execucao_id else None
+            ),
+            "data_inicio": str(data_inicio),
+            "data_fim": str(data_fim) if data_fim else None,
+        },
+        ip_address=ip_address,
+    )
+    await db.commit()
+    await db.refresh(d)
+    return d
+
+
+async def revogar_delegacao(
+    db: AsyncSession,
+    *,
+    delegacao_id: uuid.UUID,
+    user: User,
+    ip_address: str | None = None,
+) -> DelegacaoCompetencia:
+    result = await db.execute(
+        select(DelegacaoCompetencia).where(DelegacaoCompetencia.id == delegacao_id)
+    )
+    d = result.scalar_one_or_none()
+    if d is None:
+        raise ValidationError("Delegação não encontrada")
+    if not d.ativo:
+        return d
+    d.ativo = False
+    await log_audit(
+        db,
+        table_name="delegacoes_competencia",
+        record_id=str(d.id),
+        action=AuditAction.UPDATE,
+        user=user,
+        old_values={"ativo": True},
+        new_values={"ativo": False},
+        ip_address=ip_address,
+    )
+    await db.commit()
+    await db.refresh(d)
+    return d
+
+
+async def has_delegated_permission(
+    db: AsyncSession,
+    *,
+    user_id: int,
+    competencia: Competencia,
+    unidade_execucao_id: uuid.UUID | None = None,
+    referencia: date | None = None,
+) -> bool:
+    """Verifica se `user_id` possui delegação ativa para `competencia` vigente
+    em `referencia`. Quando `unidade_execucao_id` é informado, a delegação
+    pode ser global (sem escopo de UE) ou específica para essa UE.
+    """
+    ref = referencia or date.today()
+    q = select(DelegacaoCompetencia).where(
+        DelegacaoCompetencia.delegatario_user_id == user_id,
+        DelegacaoCompetencia.competencia == competencia,
+        DelegacaoCompetencia.ativo.is_(True),
+        DelegacaoCompetencia.data_inicio <= ref,
+        or_(
+            DelegacaoCompetencia.data_fim.is_(None),
+            DelegacaoCompetencia.data_fim >= ref,
+        ),
+    )
+    if unidade_execucao_id is not None:
+        q = q.where(
+            or_(
+                DelegacaoCompetencia.unidade_execucao_id.is_(None),
+                DelegacaoCompetencia.unidade_execucao_id == unidade_execucao_id,
+            )
+        )
+    result = await db.execute(q)
+    return result.scalars().first() is not None

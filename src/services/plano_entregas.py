@@ -127,6 +127,10 @@ async def aprovar_plano_entregas(
     user: User,
     ip_address: str | None = None,
 ) -> PlanoEntregas:
+    from ..models.institucional import Competencia
+    from ..models.user import UserRole
+    from .institucional import has_delegated_permission
+
     pe = await get_plano_entregas(db, plano_id)
     if pe is None:
         raise ValidationError("PlanoEntregas não encontrado")
@@ -146,6 +150,20 @@ async def aprovar_plano_entregas(
         raise ValidationError(
             "A chefia criadora não pode aprovar o próprio plano de entregas"
         )
+
+    # RF-037 — autorização: ADMIN/GESTOR podem direto; CHEFE_IMEDIATO requer delegação ativa
+    if user.role not in (UserRole.ADMIN, UserRole.GESTOR_UNIDADE):
+        has_deleg = await has_delegated_permission(
+            db,
+            user_id=user.id,
+            competencia=Competencia.APROVAR_PLANO_ENTREGAS,
+            unidade_execucao_id=pe.unidade_execucao_id,
+        )
+        if not has_deleg:
+            raise ValidationError(
+                "Sem permissão para aprovar plano de entregas — delegação"
+                " de competência não localizada (RF-037)"
+            )
 
     pe.aprovado_por_user_id = aprovador_user_id
     pe.data_aprovacao = date.today()
