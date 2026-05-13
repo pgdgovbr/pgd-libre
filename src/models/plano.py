@@ -172,6 +172,7 @@ class PlanoTrabalho(Base):
     declaracao_ausencia_prejuizo_comparecer: Mapped[bool] = mapped_column(Boolean, default=False)
     declaracao_ausencia_prejuizo_contato: Mapped[bool] = mapped_column(Boolean, default=False)
     declaracao_ausencia_prejuizo_sincrono: Mapped[bool] = mapped_column(Boolean, default=False)
+    trabalho_noturno: Mapped[bool] = mapped_column(Boolean, default=False)
     plano_entregas_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("planos_entregas.id", ondelete="SET NULL"),

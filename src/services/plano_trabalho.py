@@ -176,15 +176,25 @@ async def criar_plano_trabalho(
     declaracao_ausencia_prejuizo_comparecer: bool = False,
     declaracao_ausencia_prejuizo_contato: bool = False,
     declaracao_ausencia_prejuizo_sincrono: bool = False,
+    trabalho_noturno: bool = False,
     user: User | None = None,
     ip_address: str | None = None,
 ) -> PlanoTrabalho:
+    from .participante import validate_adicional_noturno_autorizado
+
     validate_duracao_maxima_pt(data_inicio, data_termino)
     if tcr_id is None:
         tcr = await _get_tcr_ativo(db, participante_id)
         tcr_id = tcr.id
     await validate_data_inicio_pt_ge_pe(db, data_inicio, plano_entregas_id)
     await validate_sem_sobreposicao_pt(db, participante_id, data_inicio, data_termino)
+    await validate_adicional_noturno_autorizado(
+        db,
+        participante_id=participante_id,
+        trabalho_noturno=trabalho_noturno,
+        data_inicio_pt=data_inicio,
+        data_termino_pt=data_termino,
+    )
 
     pt = PlanoTrabalho(
         id_plano_trabalho=id_plano_trabalho,
@@ -206,6 +216,7 @@ async def criar_plano_trabalho(
         declaracao_ausencia_prejuizo_comparecer=declaracao_ausencia_prejuizo_comparecer,
         declaracao_ausencia_prejuizo_contato=declaracao_ausencia_prejuizo_contato,
         declaracao_ausencia_prejuizo_sincrono=declaracao_ausencia_prejuizo_sincrono,
+        trabalho_noturno=trabalho_noturno,
     )
     db.add(pt)
     await db.flush()

@@ -1,6 +1,6 @@
 """Tipos Strawberry e helpers de resolvers para Participante, TCR e Convocação (Sprints 1.2–1.4, 2.4)."""
 import enum
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Optional
 
 import strawberry
@@ -163,6 +163,19 @@ class AfastamentoType:
     created_at: datetime
 
 
+@strawberry.type
+class AutorizacaoAdicionalNoturnoType:
+    id: strawberry.ID
+    participante_id: strawberry.ID
+    data_inicio_autorizacao: date
+    data_fim_autorizacao: Optional[date]
+    horario_inicio_noturno: time
+    horario_fim_noturno: time
+    justificativa: Optional[str]
+    autorizado_por_user_id: Optional[int]
+    created_at: datetime
+
+
 # ---------------------------------------------------------------------------
 # Inputs GraphQL
 # ---------------------------------------------------------------------------
@@ -247,6 +260,16 @@ class RegistrarAfastamentoInput:
     data_inicio: date
     data_fim: Optional[date] = None
     observacao: Optional[str] = None
+
+
+@strawberry.input
+class AutorizarAdicionalNoturnoInput:
+    participante_id: strawberry.ID
+    data_inicio_autorizacao: date
+    data_fim_autorizacao: Optional[date] = None
+    horario_inicio_noturno: time = time(22, 0)
+    horario_fim_noturno: time = time(5, 0)
+    justificativa: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -340,5 +363,19 @@ def _afastamento_to_type(a) -> AfastamentoType:  # type: ignore[no-untyped-def]
         data_inicio=a.data_inicio,
         data_fim=a.data_fim,
         observacao=a.observacao,
+        created_at=a.created_at,
+    )
+
+
+def _autorizacao_noturna_to_type(a) -> AutorizacaoAdicionalNoturnoType:  # type: ignore[no-untyped-def]
+    return AutorizacaoAdicionalNoturnoType(
+        id=strawberry.ID(str(a.id)),
+        participante_id=strawberry.ID(str(a.participante_id)),
+        data_inicio_autorizacao=a.data_inicio_autorizacao,
+        data_fim_autorizacao=a.data_fim_autorizacao,
+        horario_inicio_noturno=a.horario_inicio_noturno,
+        horario_fim_noturno=a.horario_fim_noturno,
+        justificativa=a.justificativa,
+        autorizado_por_user_id=a.autorizado_por_user_id,
         created_at=a.created_at,
     )

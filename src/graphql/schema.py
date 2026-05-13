@@ -42,6 +42,8 @@ from .institucional import (
 )
 from .participante import (
     AfastamentoType,
+    AutorizacaoAdicionalNoturnoType,
+    AutorizarAdicionalNoturnoInput,
     CadastrarParticipanteInput,
     ConfirmarSelecaoInput,
     ConvocacaoType,
@@ -55,6 +57,7 @@ from .participante import (
     TCRType,
     TermoGuardaEquipamentoType,
     _afastamento_to_type,
+    _autorizacao_noturna_to_type,
     _convocacao_to_type,
     _participante_to_type,
     _processo_selecao_to_type,
@@ -1016,6 +1019,27 @@ class Mutation:
             ip_address=_ip(info),
         )
         return _afastamento_to_type(afa)
+
+    # --- Sprint 2.7 — Adicional Noturno (TC-M10-005/006) ---
+
+    @strawberry.mutation(permission_classes=[IsChefiaOrAbove])
+    async def autorizar_adicional_noturno(
+        self, info: Info, input: AutorizarAdicionalNoturnoInput
+    ) -> AutorizacaoAdicionalNoturnoType:
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        auth = await participante_svc.autorizar_adicional_noturno(
+            db,
+            participante_id=uuid.UUID(str(input.participante_id)),
+            data_inicio_autorizacao=input.data_inicio_autorizacao,
+            data_fim_autorizacao=input.data_fim_autorizacao,
+            horario_inicio_noturno=input.horario_inicio_noturno,
+            horario_fim_noturno=input.horario_fim_noturno,
+            justificativa=input.justificativa,
+            user=user,
+            ip_address=_ip(info),
+        )
+        return _autorizacao_noturna_to_type(auth)
 
 
 async def get_context(

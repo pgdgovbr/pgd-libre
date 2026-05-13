@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from sqlalchemy import (
     BigInteger,
@@ -13,6 +13,7 @@ from sqlalchemy import (
     JSON,
     String,
     Text,
+    Time,
     UniqueConstraint,
     func,
 )
@@ -289,6 +290,28 @@ class Afastamento(Base):
     data_fim: Mapped[date | None] = mapped_column(Date, nullable=True)
     observacao: Mapped[str | None] = mapped_column(Text, nullable=True)
     registrado_por_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class AutorizacaoAdicionalNoturno(Base):
+    __tablename__ = "autorizacoes_adicional_noturno"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    participante_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("participantes.id", ondelete="CASCADE")
+    )
+    data_inicio_autorizacao: Mapped[date] = mapped_column(Date)
+    data_fim_autorizacao: Mapped[date | None] = mapped_column(Date, nullable=True)
+    horario_inicio_noturno: Mapped[time] = mapped_column(Time, default=time(22, 0))
+    horario_fim_noturno: Mapped[time] = mapped_column(Time, default=time(5, 0))
+    justificativa: Mapped[str | None] = mapped_column(Text, nullable=True)
+    autorizado_por_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(

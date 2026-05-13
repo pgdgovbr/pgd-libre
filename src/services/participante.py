@@ -1,6 +1,6 @@
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import and_, func, select
@@ -10,6 +10,7 @@ from ..models.audit import AuditAction
 from ..models.institucional import OrigemUnidade, UnidadeExecucao
 from ..models.participante import (
     Afastamento,
+    AutorizacaoAdicionalNoturno,
     Convocacao,
     CriteriosPrioridade,
     MotivoDesligamento,
@@ -260,6 +261,95 @@ async def registrar_afastamento(
     await db.commit()
     await db.refresh(afa)
     return afa
+
+
+# ---------------------------------------------------------------------------
+# Adicional noturno (TC-M10-005/006)
+# ---------------------------------------------------------------------------
+
+
+async def autorizar_adicional_noturno(
+    db: AsyncSession,
+    *,
+    participante_id: uuid.UUID,
+    data_inicio_autorizacao: date,
+    data_fim_autorizacao: date | None = None,
+    horario_inicio_noturno: time = time(22, 0),
+    horario_fim_noturno: time = time(5, 0),
+    justificativa: str | None = None,
+    user: User,
+    ip_address: str | None = None,
+) -> AutorizacaoAdicionalNoturno:
+    if (
+        data_fim_autorizacao is not None
+        and data_fim_autorizacao < data_inicio_autorizacao
+    ):
+        raise ValidationError(
+            "Data fim da autorização não pode ser anterior à data de início"
+        )
+    auth = AutorizacaoAdicionalNoturno(
+        participante_id=participante_id,
+        data_inicio_autorizacao=data_inicio_autorizacao,
+        data_fim_autorizacao=data_fim_autorizacao,
+        horario_inicio_noturno=horario_inicio_noturno,
+        horario_fim_noturno=horario_fim_noturno,
+        justificativa=justificativa,
+        autorizado_por_user_id=user.id if user else None,
+    )
+    db.add(auth)
+    await db.flush()
+    await log_audit(
+        db,
+        table_name="autorizacoes_adicional_noturno",
+        record_id=str(auth.id),
+        action=AuditAction.CREATE,
+        user=user,
+        new_values={
+            "participante_id": str(participante_id),
+            "data_inicio_autorizacao": str(data_inicio_autorizacao),
+            "data_fim_autorizacao": (
+                str(data_fim_autorizacao) if data_fim_autorizacao else None
+            ),
+        },
+        ip_address=ip_address,
+    )
+    await db.commit()
+    await db.refresh(auth)
+    return auth
+
+
+async def validate_adicional_noturno_autorizado(
+    db: AsyncSession,
+    *,
+    participante_id: uuid.UUID,
+    trabalho_noturno: bool,
+    data_inicio_pt: date,
+    data_termino_pt: date,
+) -> None:
+    """Verifica se existe autorização cobrindo todo o período do PT.
+
+    Uma autorização "cobre" o período do PT quando:
+      - data_inicio_autorizacao <= data_inicio_pt
+      - data_fim_autorizacao is NULL OR data_fim_autorizacao >= data_termino_pt
+    """
+    if not trabalho_noturno:
+        return
+    from sqlalchemy import or_
+
+    q = select(AutorizacaoAdicionalNoturno).where(
+        AutorizacaoAdicionalNoturno.participante_id == participante_id,
+        AutorizacaoAdicionalNoturno.data_inicio_autorizacao <= data_inicio_pt,
+        or_(
+            AutorizacaoAdicionalNoturno.data_fim_autorizacao.is_(None),
+            AutorizacaoAdicionalNoturno.data_fim_autorizacao >= data_termino_pt,
+        ),
+    )
+    result = await db.execute(q)
+    if result.scalars().first() is None:
+        raise ValidationError(
+            "Plano de Trabalho com trabalho noturno requer autorização prévia"
+            " da chefia (IN24 Art.14)"
+        )
 
 
 # ---------------------------------------------------------------------------
