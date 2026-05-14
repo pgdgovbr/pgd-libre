@@ -10,15 +10,6 @@ permissions:
 
 jobs:
   build-and-deploy:
-    # NOTE: este workflow só pode rodar depois que o repo ../infra/ provisionar:
-    #   - Workload Identity Pool/Provider para o repo destaquesgovbr/pgd-libre
-    #   - Service Account pgd-libre-deploy@inspire-7-finep.iam.gserviceaccount.com
-    #   - Artifact Registry southamerica-east1-docker.pkg.dev/inspire-7-finep/pgd-libre/
-    #   - Cloud Run service pgd-libre
-    # Os secrets GCP_WORKLOAD_IDENTITY_PROVIDER e GCP_SERVICE_ACCOUNT precisam
-    # estar configurados no repo. Remover o `if: false` quando esses pré-requisitos
-    # estiverem atendidos.
-    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
