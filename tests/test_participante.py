@@ -1,4 +1,5 @@
 """Sprint 1.2 — Participantes e TCR: service + GraphQL tests (TC-M02)."""
+
 import uuid
 from datetime import date, timedelta
 
@@ -6,7 +7,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.institucional import OrigemUnidade, StatusPgd
+from src.models.institucional import OrigemUnidade
 from src.models.participante import (
     MotivoDesligamento,
     RegimeExecucao,

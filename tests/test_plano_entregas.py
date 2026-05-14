@@ -1,8 +1,9 @@
 """Sprint 1.3 — Plano de Entregas: service tests (TC-M03)."""
-import uuid
+
 from datetime import date
 
 import pytest
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.institucional import OrigemUnidade
@@ -29,13 +30,9 @@ from src.services.plano_entregas import (
     criar_plano_entregas,
     iniciar_execucao_pe,
     validate_duracao_maxima_pe,
-    validate_sem_sobreposicao_pe,
 )
 
-from httpx import AsyncClient
-
 from .conftest import persist_user, set_auth_cookie
-
 
 # ---------------------------------------------------------------------------
 # Pure validators
@@ -110,14 +107,22 @@ async def _make_unidade_execucao(db, admin):
     return ua, ue
 
 
-async def _criar_pe(db, admin, ue, cod=1, data_inicio=date(2024, 1, 1), data_termino=date(2024, 12, 31)):
-    ua_result = await db.execute(
-        __import__("sqlalchemy").select(
-            __import__("src.models.institucional", fromlist=["UnidadeAutorizadora"]).UnidadeAutorizadora
-        ).limit(1)
+async def _criar_pe(
+    db, admin, ue, cod=1, data_inicio=date(2024, 1, 1), data_termino=date(2024, 12, 31)
+):
+    await db.execute(
+        __import__("sqlalchemy")
+        .select(
+            __import__(
+                "src.models.institucional", fromlist=["UnidadeAutorizadora"]
+            ).UnidadeAutorizadora
+        )
+        .limit(1)
     )
-    from src.models.institucional import UnidadeAutorizadora
     from sqlalchemy import select
+
+    from src.models.institucional import UnidadeAutorizadora
+
     ua = (await db.execute(select(UnidadeAutorizadora).limit(1))).scalar_one()
     return await criar_plano_entregas(
         db,

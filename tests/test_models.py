@@ -1,4 +1,5 @@
 """Testes para src/models/ — enums, defaults e constraints."""
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,7 @@ from src.models.user import User, UserRole
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
+
 
 def test_user_role_enum_values() -> None:
     assert UserRole.ADMIN == "admin"
@@ -28,6 +30,7 @@ def test_audit_action_enum_values() -> None:
 # ---------------------------------------------------------------------------
 # User — defaults e persistência
 # ---------------------------------------------------------------------------
+
 
 async def test_user_default_role_is_servidor(db: AsyncSession) -> None:
     user = User(email="def@test.gov.br", name="Default")
@@ -66,6 +69,7 @@ async def test_user_created_at_set_automatically(db: AsyncSession) -> None:
 # User — constraint de e-mail único
 # ---------------------------------------------------------------------------
 
+
 async def test_user_email_unique_constraint(db: AsyncSession) -> None:
     u1 = User(email="dup@test.gov.br", name="U1")
     u2 = User(email="dup@test.gov.br", name="U2")
@@ -79,6 +83,7 @@ async def test_user_email_unique_constraint(db: AsyncSession) -> None:
 # ---------------------------------------------------------------------------
 # AuditLog — persistência básica
 # ---------------------------------------------------------------------------
+
 
 async def test_audit_log_persists(db: AsyncSession) -> None:
     log = AuditLog(

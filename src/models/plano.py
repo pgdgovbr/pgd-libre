@@ -61,9 +61,7 @@ class PlanoEntregas(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_plano_entregas: Mapped[str] = mapped_column(String(50))
     origem_unidade: Mapped[OrigemUnidade] = mapped_column(
         Enum(OrigemUnidade, name="origemunidade"), nullable=False
@@ -79,12 +77,8 @@ class PlanoEntregas(Base):
     data_termino: Mapped[date] = mapped_column(Date)
     avaliacao: Mapped[int | None] = mapped_column(Integer, nullable=True)
     data_avaliacao: Mapped[date | None] = mapped_column(Date, nullable=True)
-    avaliado_por_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id"), nullable=True
-    )
-    aprovado_por_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id"), nullable=True
-    )
+    avaliado_por_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    aprovado_por_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     data_aprovacao: Mapped[date | None] = mapped_column(Date, nullable=True)
     ajustes_comunicados_em: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -92,9 +86,7 @@ class PlanoEntregas(Base):
     api_sincronizado_em: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -114,18 +106,14 @@ class Entrega(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_entrega: Mapped[str] = mapped_column(String(50))
     plano_entregas_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("planos_entregas.id", ondelete="CASCADE")
     )
     nome_entrega: Mapped[str] = mapped_column(String(300))
     meta_entrega: Mapped[int] = mapped_column(Integer)
-    tipo_meta: Mapped[TipoMeta] = mapped_column(
-        Enum(TipoMeta, name="tipometa")
-    )
+    tipo_meta: Mapped[TipoMeta] = mapped_column(Enum(TipoMeta, name="tipometa"))
     data_entrega: Mapped[date] = mapped_column(Date)
     nome_unidade_demandante: Mapped[str] = mapped_column(String(300))
     nome_unidade_destinataria: Mapped[str] = mapped_column(String(300))
@@ -145,9 +133,7 @@ class PlanoTrabalho(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_plano_trabalho: Mapped[str] = mapped_column(String(50))
     origem_unidade: Mapped[OrigemUnidade] = mapped_column(
         Enum(OrigemUnidade, name="origemunidade"), nullable=False
@@ -181,9 +167,7 @@ class PlanoTrabalho(Base):
     api_sincronizado_em: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -206,9 +190,7 @@ class Contribuicao(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_contribuicao: Mapped[str] = mapped_column(String(50))
     rotulo: Mapped[str | None] = mapped_column(String(50), nullable=True)
     plano_trabalho_id: Mapped[uuid.UUID] = mapped_column(
@@ -220,9 +202,7 @@ class Contribuicao(Base):
     id_entrega: Mapped[str | None] = mapped_column(String(50), nullable=True)
     descricao: Mapped[str] = mapped_column(Text)
 
-    plano_trabalho: Mapped["PlanoTrabalho"] = relationship(
-        back_populates="contribuicoes"
-    )
+    plano_trabalho: Mapped["PlanoTrabalho"] = relationship(back_populates="contribuicoes")
 
 
 class AvaliacaoRegistrosExecucao(Base):
@@ -235,9 +215,7 @@ class AvaliacaoRegistrosExecucao(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_periodo_avaliativo: Mapped[str] = mapped_column(String(50))
     plano_trabalho_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("planos_trabalho.id", ondelete="CASCADE")
@@ -249,27 +227,17 @@ class AvaliacaoRegistrosExecucao(Base):
     data_registro_participante: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    avaliacao_registros_execucao: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
-    data_avaliacao_registros_execucao: Mapped[date | None] = mapped_column(
-        Date, nullable=True
-    )
+    avaliacao_registros_execucao: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    data_avaliacao_registros_execucao: Mapped[date | None] = mapped_column(Date, nullable=True)
     avaliacao_justificativa: Mapped[str | None] = mapped_column(Text, nullable=True)
-    avaliacao_escala_customizada: Mapped[str | None] = mapped_column(
-        String(100), nullable=True
-    )
+    avaliacao_escala_customizada: Mapped[str | None] = mapped_column(String(100), nullable=True)
     horas_inexecucao: Mapped[int | None] = mapped_column(Integer, nullable=True)
     recurso_texto: Mapped[str | None] = mapped_column(Text, nullable=True)
-    recurso_data: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    recurso_data: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     recurso_decisao: Mapped[DecisaoRecurso | None] = mapped_column(
         Enum(DecisaoRecurso, name="decisaorecurso"), nullable=True
     )
-    recurso_decisao_justificativa: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )
+    recurso_decisao_justificativa: Mapped[str | None] = mapped_column(Text, nullable=True)
     recurso_decisao_data: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

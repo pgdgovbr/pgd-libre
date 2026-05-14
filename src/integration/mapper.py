@@ -67,9 +67,7 @@ def plano_entregas_to_payload(pe: PlanoEntregas) -> dict:
 
 def plano_trabalho_to_payload(pt: PlanoTrabalho) -> dict:
     avaliacoes = [
-        a_dict
-        for a in pt.avaliacoes
-        if (a_dict := _avaliacao_registros_execucao(a)) is not None
+        a_dict for a in pt.avaliacoes if (a_dict := _avaliacao_registros_execucao(a)) is not None
     ]
     return {
         "origem_unidade": pt.origem_unidade.value,

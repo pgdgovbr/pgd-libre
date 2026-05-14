@@ -1,7 +1,9 @@
 """Sprint 1.5 — Avaliação e Recurso: service tests (TC-M04 avaliação + TC-M08 recurso)."""
+
 from datetime import date
 
 import pytest
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.institucional import OrigemUnidade
@@ -31,10 +33,7 @@ from src.services.plano_trabalho import (
     registrar_execucao,
 )
 
-from httpx import AsyncClient
-
 from .conftest import persist_user, set_auth_cookie
-
 
 # ---------------------------------------------------------------------------
 # Pure validators
@@ -418,8 +417,12 @@ async def test_gql_fluxo_recurso_nao_acatado(client: AsyncClient, db: AsyncSessi
 
     # avaliar com nota 5 (abre recurso)
     await avaliar_registros_execucao(
-        db, avaliacao_id=are.id, nota=5, data_avaliacao=date(2024, 4, 10),
-        justificativa="Não executou", user=admin,
+        db,
+        avaliacao_id=are.id,
+        nota=5,
+        data_avaliacao=date(2024, 4, 10),
+        justificativa="Não executou",
+        user=admin,
     )
 
     # abrir recurso
@@ -460,8 +463,12 @@ async def test_gql_fluxo_recurso_acatado_muda_nota(client: AsyncClient, db: Asyn
     are = await _setup_avaliacao(db, admin)
 
     await avaliar_registros_execucao(
-        db, avaliacao_id=are.id, nota=4, data_avaliacao=date(2024, 4, 10),
-        justificativa="Inadequado", user=admin,
+        db,
+        avaliacao_id=are.id,
+        nota=4,
+        data_avaliacao=date(2024, 4, 10),
+        justificativa="Inadequado",
+        user=admin,
     )
     await abrir_recurso(db, avaliacao_id=are.id, texto="Tenho evidências", user=admin)
 

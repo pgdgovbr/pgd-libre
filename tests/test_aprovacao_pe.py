@@ -1,11 +1,12 @@
 """RF-011 — Aprovação do Plano de Entregas pelo Nível Hierárquico Superior (TC-M03-009 a 011)."""
+
 from datetime import date
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.institucional import OrigemUnidade, UnidadeExecucao
-from src.models.plano import STATUS_PE_APROVADO, STATUS_PE_EM_EXECUCAO, TipoMeta
+from src.models.plano import STATUS_PE_EM_EXECUCAO, TipoMeta
 from src.models.user import UserRole
 from src.services.institucional import (
     ValidationError,
@@ -21,7 +22,6 @@ from src.services.plano_entregas import (
 )
 
 from .conftest import persist_user
-
 
 # ---------------------------------------------------------------------------
 # Helpers

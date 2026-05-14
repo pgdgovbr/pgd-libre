@@ -1,6 +1,5 @@
 import uuid
 from datetime import date
-from typing import Optional
 
 import strawberry
 from fastapi import Depends, Request
@@ -10,7 +9,7 @@ from strawberry.types import Info
 
 from ..auth.deps import get_optional_user
 from ..database import get_db
-from ..models.institucional import Competencia, OrigemUnidade, StatusAto, StatusPgd
+from ..models.institucional import Competencia, OrigemUnidade, StatusAto
 from ..models.participante import (
     MotivoDesligamento,
     RegimeExecucao,
@@ -19,10 +18,8 @@ from ..models.participante import (
 )
 from ..models.plano import DecisaoRecurso, TipoMeta
 from ..models.user import User
-from ..models.notificacao import TipoEvento as _TipoEvento
 from ..services import avaliacao as av_svc
 from ..services import institucional as svc
-from ..services import notificacao as notif_svc
 from ..services import participante as participante_svc
 from ..services import plano_entregas as pe_svc
 from ..services import plano_trabalho as pt_svc
@@ -33,7 +30,6 @@ from .institucional import (
     CriarUnidadeInstituidoraInput,
     DelegacaoCompetenciaType,
     DelegarCompetenciaInput,
-    OrigemUnidadeGql,
     ResultadoPublicoType,
     StatusAtoGql,
     UnidadeAutorizadoraType,
@@ -43,6 +39,7 @@ from .institucional import (
     _ua_to_type,
     _ui_to_type,
 )
+from .notificacao import NotificacaoType, _notificacao_to_type
 from .participante import (
     AfastamentoType,
     AutorizacaoAdicionalNoturnoType,
@@ -52,8 +49,8 @@ from .participante import (
     ConvocacaoType,
     CriarConvocacaoInput,
     MotivoDesligamentoGql,
-    ParticipanteType,
     PactuarTCRInput,
+    ParticipanteType,
     ProcessoSelecaoType,
     RegistrarAfastamentoInput,
     RegistrarAutorizacaoEquipamentosInput,
@@ -67,8 +64,7 @@ from .participante import (
     _tcr_to_type,
     _termo_guarda_to_type,
 )
-from .permissions import IsAdmin, IsGestorOrAdmin, IsChefiaOrAbove
-from .notificacao import NotificacaoType, _notificacao_to_type
+from .permissions import IsAdmin, IsChefiaOrAbove, IsGestorOrAdmin
 from .plano import (
     AdicionarContribuicaoInput,
     AprovarPlanoEntregasInput,
@@ -109,6 +105,7 @@ class PainelConformidadeType:
 def _ua_cod(info: Info) -> int | None:
     """Returns the user's cod_unidade_autorizadora, or None if ADMIN (sees all)."""
     from ..models.user import UserRole
+
     user: User | None = info.context.get("user")
     if user is None or user.role == UserRole.ADMIN:
         return None
@@ -142,9 +139,7 @@ class Query:
         user: User | None = info.context.get("user")
         if not user:
             return None
-        return UserType(
-            id=user.id, email=user.email, name=user.name, role=user.role.value
-        )
+        return UserType(id=user.id, email=user.email, name=user.name, role=user.role.value)
 
     # --- Sprint 1.1 ---
 
@@ -173,11 +168,11 @@ class Query:
     # --- Sprints 1.2–1.4 ---
 
     @strawberry.field(permission_classes=[IsChefiaOrAbove])
-    async def participante(
-        self, info: Info, id: strawberry.ID
-    ) -> ParticipanteType | None:
+    async def participante(self, info: Info, id: strawberry.ID) -> ParticipanteType | None:
         from sqlalchemy import select
+
         from ..models.participante import Participante
+
         db: AsyncSession = info.context["db"]
         ua_cod = _ua_cod(info)
         stmt = select(Participante).where(Participante.id == uuid.UUID(str(id)))
@@ -190,7 +185,9 @@ class Query:
     @strawberry.field(permission_classes=[IsChefiaOrAbove])
     async def listar_participantes(self, info: Info) -> list[ParticipanteType]:
         from sqlalchemy import select
+
         from ..models.participante import Participante
+
         db: AsyncSession = info.context["db"]
         ua_cod = _ua_cod(info)
         stmt = select(Participante)
@@ -202,12 +199,12 @@ class Query:
     # --- Sprints 1.3–1.5 ---
 
     @strawberry.field(permission_classes=[IsChefiaOrAbove])
-    async def plano_entregas(
-        self, info: Info, id: strawberry.ID
-    ) -> PlanoEntregasType | None:
+    async def plano_entregas(self, info: Info, id: strawberry.ID) -> PlanoEntregasType | None:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
+
         from ..models.plano import PlanoEntregas
+
         db: AsyncSession = info.context["db"]
         ua_cod = _ua_cod(info)
         stmt = (
@@ -225,7 +222,9 @@ class Query:
     async def listar_planos_entregas(self, info: Info) -> list[PlanoEntregasType]:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
+
         from ..models.plano import PlanoEntregas
+
         db: AsyncSession = info.context["db"]
         ua_cod = _ua_cod(info)
         stmt = select(PlanoEntregas).options(selectinload(PlanoEntregas.entregas))
@@ -235,12 +234,12 @@ class Query:
         return [_pe_to_type(pe) for pe in result.scalars()]
 
     @strawberry.field(permission_classes=[IsChefiaOrAbove])
-    async def plano_trabalho(
-        self, info: Info, id: strawberry.ID
-    ) -> PlanoTrabalhoType | None:
+    async def plano_trabalho(self, info: Info, id: strawberry.ID) -> PlanoTrabalhoType | None:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
+
         from ..models.plano import PlanoTrabalho
+
         db: AsyncSession = info.context["db"]
         ua_cod = _ua_cod(info)
         stmt = (
@@ -261,7 +260,9 @@ class Query:
     async def listar_planos_trabalho(self, info: Info) -> list[PlanoTrabalhoType]:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
+
         from ..models.plano import PlanoTrabalho
+
         db: AsyncSession = info.context["db"]
         ua_cod = _ua_cod(info)
         stmt = select(PlanoTrabalho).options(
@@ -278,7 +279,9 @@ class Query:
     @strawberry.field(permission_classes=[IsAdmin])
     async def minhas_notificacoes(self, info: Info) -> list[NotificacaoType]:
         from sqlalchemy import select
+
         from ..models.notificacao import Notificacao
+
         db: AsyncSession = info.context["db"]
         user: User = info.context["user"]
         result = await db.execute(
@@ -294,6 +297,7 @@ class Query:
     @strawberry.field(permission_classes=[IsAdmin])
     async def painel_conformidade(self, info: Info) -> PainelConformidadeType:
         from sqlalchemy import func, select
+
         from ..models.participante import Participante
         from ..models.plano import PlanoEntregas, PlanoTrabalho
         from ..models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
@@ -305,9 +309,7 @@ class Query:
             total = total_r.scalar_one()
 
             env_r = await db.execute(
-                select(func.count()).select_from(model).where(
-                    model.api_sincronizado_em.isnot(None)
-                )
+                select(func.count()).select_from(model).where(model.api_sincronizado_em.isnot(None))
             )
             enviados = env_r.scalar_one()
 
@@ -340,9 +342,10 @@ class Query:
     async def relatorio_sem_plano_trabalho(
         self,
         info: Info,
-        cod_unidade_autorizadora: Optional[int] = None,
+        cod_unidade_autorizadora: int | None = None,
     ) -> list[ParticipanteType]:
         from ..services import relatorios as rel_svc
+
         db: AsyncSession = info.context["db"]
         ua_cod = cod_unidade_autorizadora if cod_unidade_autorizadora is not None else _ua_cod(info)
         participantes = await rel_svc.relatorio_sem_plano_trabalho(db, ua_cod)
@@ -353,9 +356,10 @@ class Query:
         self,
         info: Info,
         referencia: date,
-        cod_unidade_autorizadora: Optional[int] = None,
+        cod_unidade_autorizadora: int | None = None,
     ) -> list[AvaliacaoType]:
         from ..services import relatorios as rel_svc
+
         db: AsyncSession = info.context["db"]
         ua_cod = cod_unidade_autorizadora if cod_unidade_autorizadora is not None else _ua_cod(info)
         avaliacoes = await rel_svc.relatorio_registros_atraso(db, referencia, ua_cod)
@@ -366,9 +370,10 @@ class Query:
         self,
         info: Info,
         referencia: date,
-        cod_unidade_autorizadora: Optional[int] = None,
+        cod_unidade_autorizadora: int | None = None,
     ) -> list[AvaliacaoType]:
         from ..services import relatorios as rel_svc
+
         db: AsyncSession = info.context["db"]
         ua_cod = cod_unidade_autorizadora if cod_unidade_autorizadora is not None else _ua_cod(info)
         avaliacoes = await rel_svc.relatorio_avaliacoes_pendentes(db, referencia, ua_cod)
@@ -379,9 +384,10 @@ class Query:
         self,
         info: Info,
         referencia: date,
-        cod_unidade_autorizadora: Optional[int] = None,
+        cod_unidade_autorizadora: int | None = None,
     ) -> list[PlanoEntregasType]:
         from ..services import relatorios as rel_svc
+
         db: AsyncSession = info.context["db"]
         ua_cod = cod_unidade_autorizadora if cod_unidade_autorizadora is not None else _ua_cod(info)
         planos = await rel_svc.relatorio_pe_avaliacao_pendente(db, referencia, ua_cod)
@@ -398,6 +404,7 @@ class Query:
         mes: int,
     ) -> list[AfastamentoType]:
         from ..services import relatorios as rel_svc
+
         db: AsyncSession = info.context["db"]
         afastamentos = await rel_svc.relatorio_afastamentos(
             db,
@@ -593,9 +600,7 @@ class Mutation:
             saldo_banco_horas=input.saldo_banco_horas,
             acoes_melhoria=input.acoes_melhoria,
             tcr_anterior_id=(
-                uuid.UUID(str(input.tcr_anterior_id))
-                if input.tcr_anterior_id
-                else None
+                uuid.UUID(str(input.tcr_anterior_id)) if input.tcr_anterior_id else None
             ),
             user=user,
             ip_address=_ip(info),
@@ -774,9 +779,7 @@ class Mutation:
             carga_horaria_disponivel=input.carga_horaria_disponivel,
             criterios_avaliacao=input.criterios_avaliacao,
             plano_entregas_id=(
-                uuid.UUID(str(input.plano_entregas_id))
-                if input.plano_entregas_id
-                else None
+                uuid.UUID(str(input.plano_entregas_id)) if input.plano_entregas_id else None
             ),
             user=user,
             ip_address=_ip(info),
@@ -862,7 +865,7 @@ class Mutation:
         avaliacao_id: strawberry.ID,
         nota: int,
         data_avaliacao: date,
-        justificativa: Optional[str] = None,
+        justificativa: str | None = None,
     ) -> AvaliacaoType:
         db: AsyncSession = info.context["db"]
         user: User = info.context["user"]
@@ -901,8 +904,8 @@ class Mutation:
         info: Info,
         avaliacao_id: strawberry.ID,
         decisao: DecisaoRecursoGql,
-        justificativa: Optional[str] = None,
-        nova_nota: Optional[int] = None,
+        justificativa: str | None = None,
+        nova_nota: int | None = None,
     ) -> AvaliacaoType:
         db: AsyncSession = info.context["db"]
         user: User = info.context["user"]
@@ -928,8 +931,11 @@ class Mutation:
     ) -> bool:
         """Remove registros de falha para a entidade, permitindo retry imediato."""
         import uuid as _uuid
+
         from sqlalchemy import delete
+
         from ..models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
+
         db: AsyncSession = info.context["db"]
         await db.execute(
             delete(RegistroEnvioAPI).where(
@@ -947,8 +953,9 @@ class Mutation:
     async def confirmar_selecao(
         self, info: Info, input: ConfirmarSelecaoInput
     ) -> ProcessoSelecaoType:
-        from ..services.participante import CandidatoSelecao
         from ..models.participante import CriteriosPrioridade
+        from ..services.participante import CandidatoSelecao
+
         db: AsyncSession = info.context["db"]
         user: User = info.context["user"]
         candidatos = [
@@ -1058,9 +1065,7 @@ class Mutation:
             delegatario_user_id=input.delegatario_user_id,
             competencia=Competencia(input.competencia.value),
             unidade_execucao_id=(
-                uuid.UUID(str(input.unidade_execucao_id))
-                if input.unidade_execucao_id
-                else None
+                uuid.UUID(str(input.unidade_execucao_id)) if input.unidade_execucao_id else None
             ),
             data_inicio=input.data_inicio,
             data_fim=input.data_fim,

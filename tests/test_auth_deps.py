@@ -1,4 +1,5 @@
 """Testes para src/auth/deps.py — criação/decodificação de JWT e get_optional_user."""
+
 from datetime import UTC, datetime, timedelta
 
 import jwt as pyjwt
@@ -13,6 +14,7 @@ from tests.conftest import persist_user, set_auth_cookie
 # ---------------------------------------------------------------------------
 # TC-M06-004a  create_access_token — payload correto
 # ---------------------------------------------------------------------------
+
 
 def test_create_access_token_payload():
     user = User(id=42, email="srv@test.gov.br", name="Srv", role=UserRole.SERVIDOR)
@@ -42,6 +44,7 @@ def test_create_access_token_not_expired():
 # ---------------------------------------------------------------------------
 # TC-M06-005  tokens inválidos / expirados levantam erro
 # ---------------------------------------------------------------------------
+
 
 def test_decode_expired_token_raises():
     from src.config import get_settings
@@ -78,6 +81,7 @@ def test_decode_wrong_signature_raises():
 # get_optional_user (via /auth/me que usa a dependência)
 # ---------------------------------------------------------------------------
 
+
 # TC-M06-004c  sem cookie → 401
 async def test_auth_me_no_cookie(client: AsyncClient) -> None:
     response = await client.get("/auth/me", headers={"user-agent": "pytest"})
@@ -101,9 +105,7 @@ async def test_auth_me_inactive_user(db: AsyncSession, client: AsyncClient) -> N
 
 # TC-M06-006  token válido para usuário ativo → 200 + dados corretos
 async def test_auth_me_valid_user(db: AsyncSession, client: AsyncClient) -> None:
-    user = await persist_user(
-        db, email="ativo@test.gov.br", role=UserRole.GESTOR_UNIDADE
-    )
+    user = await persist_user(db, email="ativo@test.gov.br", role=UserRole.GESTOR_UNIDADE)
     set_auth_cookie(client, user)
     response = await client.get("/auth/me", headers={"user-agent": "pytest"})
     assert response.status_code == 200

@@ -9,8 +9,9 @@ They are skipped automatically when the env var is absent or empty.
 """
 
 import os
-import pytest
+
 import httpx
+import pytest
 
 API_PGD_URL = os.getenv("API_PGD_URL", "").rstrip("/")
 API_PGD_USERNAME = os.getenv("API_PGD_USERNAME", "johndoe@oi.com")
@@ -26,6 +27,7 @@ _HEADERS = {"User-Agent": "pgd-libre-test/0.1"}
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 async def _get_token() -> str:
     async with httpx.AsyncClient(headers=_HEADERS) as c:
@@ -175,8 +177,13 @@ async def test_send_plano_trabalho():
 async def test_send_plano_entregas_avaliado():
     """status=5 requires avaliacao and data_avaliacao."""
     token = await _get_token()
-    payload = {**PE_PAYLOAD, "id_plano_entregas": "PE-INTEG-AVAL", "status": 5,
-               "avaliacao": 4, "data_avaliacao": "2024-07-05"}
+    payload = {
+        **PE_PAYLOAD,
+        "id_plano_entregas": "PE-INTEG-AVAL",
+        "status": 5,
+        "avaliacao": 4,
+        "data_avaliacao": "2024-07-05",
+    }
     r = await _put(token, f"/organizacao/SIAPE/{COD_UA}/plano_entregas/PE-INTEG-AVAL", payload)
     assert r.status_code in (200, 201), r.text
     assert r.json()["avaliacao"] == 4
@@ -197,11 +204,12 @@ async def test_client_helper():
 
 async def test_mapper_plano_entregas(db):
     """mapper.plano_entregas_to_payload produces valid api-pgd payload."""
-    from datetime import date
-    from src.integration.mapper import plano_entregas_to_payload
-    from src.models.plano import PlanoEntregas, Entrega, TipoMeta, STATUS_PE_EM_EXECUCAO
-    from src.models.institucional import OrigemUnidade
     import uuid
+    from datetime import date
+
+    from src.integration.mapper import plano_entregas_to_payload
+    from src.models.institucional import OrigemUnidade
+    from src.models.plano import STATUS_PE_EM_EXECUCAO, Entrega, PlanoEntregas, TipoMeta
 
     pe = PlanoEntregas(
         id=uuid.uuid4(),
@@ -241,7 +249,7 @@ async def test_mapper_plano_entregas(db):
     token = await _get_token()
     r = await _put(
         token,
-        f"/organizacao/SIAPE/1/plano_entregas/PE-MAP-001",
+        "/organizacao/SIAPE/1/plano_entregas/PE-MAP-001",
         payload,
     )
     assert r.status_code in (200, 201), r.text
@@ -249,11 +257,12 @@ async def test_mapper_plano_entregas(db):
 
 async def test_mapper_participante():
     """mapper.participante_to_payload produces valid api-pgd payload."""
-    from datetime import date
-    from src.integration.mapper import participante_to_payload
-    from src.models.participante import Participante, TipoVinculo
-    from src.models.institucional import OrigemUnidade
     import uuid
+    from datetime import date
+
+    from src.integration.mapper import participante_to_payload
+    from src.models.institucional import OrigemUnidade
+    from src.models.participante import Participante, TipoVinculo
 
     p = Participante(
         id=uuid.uuid4(),

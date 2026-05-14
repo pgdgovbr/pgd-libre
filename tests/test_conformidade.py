@@ -2,18 +2,17 @@
 
 TDD: testes escritos antes da implementação.
 """
-from datetime import date, datetime, timezone, timedelta
-from unittest.mock import AsyncMock, MagicMock
-import uuid
 
-import pytest
+from datetime import UTC, date, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock
+
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.institucional import OrigemUnidade
 from src.models.participante import Participante, TipoVinculo
-from src.models.plano import PlanoEntregas, TipoMeta, Entrega, STATUS_PE_EM_EXECUCAO
+from src.models.plano import STATUS_PE_EM_EXECUCAO, PlanoEntregas
 from src.models.user import UserRole
 from tests.conftest import persist_user, set_auth_cookie
 
@@ -21,8 +20,14 @@ from tests.conftest import persist_user, set_auth_cookie
 # Helpers (duplicados do test_sync.py para isolamento)
 # ---------------------------------------------------------------------------
 
+
 async def _ua_ue(db: AsyncSession):
-    from src.models.institucional import UnidadeAutorizadora, UnidadeInstituidora, UnidadeExecucao
+    from src.models.institucional import (
+        UnidadeAutorizadora,
+        UnidadeExecucao,
+        UnidadeInstituidora,
+    )
+
     ua = UnidadeAutorizadora(
         origem_unidade=OrigemUnidade.SIAPE,
         cod_unidade_autorizadora=999,
@@ -105,6 +110,7 @@ def _mock_client():
 # TC-S22-001  Sucesso cria RegistroEnvioAPI com sucesso=True
 # ---------------------------------------------------------------------------
 
+
 async def test_sync_sucesso_cria_registro(db: AsyncSession) -> None:
     from src.integration.sync import sincronizar_tudo
     from src.models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
@@ -132,6 +138,7 @@ async def test_sync_sucesso_cria_registro(db: AsyncSession) -> None:
 # ---------------------------------------------------------------------------
 # TC-S22-002  Falha cria RegistroEnvioAPI com sucesso=False e mensagem
 # ---------------------------------------------------------------------------
+
 
 async def test_sync_falha_cria_registro_com_erro(db: AsyncSession) -> None:
     from src.integration.sync import sincronizar_tudo
@@ -161,6 +168,7 @@ async def test_sync_falha_cria_registro_com_erro(db: AsyncSession) -> None:
 # TC-S22-003  Entidade com falha recente não é retentada (backoff)
 # ---------------------------------------------------------------------------
 
+
 async def test_sync_backoff_nao_retenta_falha_recente(db: AsyncSession) -> None:
     from src.integration.sync import sincronizar_tudo
     from src.models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
@@ -176,7 +184,7 @@ async def test_sync_backoff_nao_retenta_falha_recente(db: AsyncSession) -> None:
         tentativa=1,
         sucesso=False,
         erro_mensagem="erro anterior",
-        created_at=datetime.now(timezone.utc),  # recente
+        created_at=datetime.now(UTC),  # recente
     )
     db.add(reg)
     await db.commit()
@@ -193,8 +201,9 @@ async def test_sync_backoff_nao_retenta_falha_recente(db: AsyncSession) -> None:
 # TC-S22-004  Entidade com falha antiga É retentada
 # ---------------------------------------------------------------------------
 
+
 async def test_sync_retenta_apos_backoff_expirado(db: AsyncSession) -> None:
-    from src.integration.sync import sincronizar_tudo, RETRY_DELAYS
+    from src.integration.sync import RETRY_DELAYS, sincronizar_tudo
     from src.models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
 
     ue = await _ua_ue(db)
@@ -202,7 +211,7 @@ async def test_sync_retenta_apos_backoff_expirado(db: AsyncSession) -> None:
     await db.commit()
 
     # Simula falha antiga (delay[0] + 10s atrás) — tentativa 1
-    old_time = datetime.now(timezone.utc) - timedelta(seconds=RETRY_DELAYS[0] + 10)
+    old_time = datetime.now(UTC) - timedelta(seconds=RETRY_DELAYS[0] + 10)
     reg = RegistroEnvioAPI(
         tipo_entidade=TipoEntidadeSync.PARTICIPANTE,
         entidade_id=p.id,
@@ -225,8 +234,9 @@ async def test_sync_retenta_apos_backoff_expirado(db: AsyncSession) -> None:
 # TC-S22-005  Entidade que esgotou tentativas é ignorada
 # ---------------------------------------------------------------------------
 
+
 async def test_sync_ignora_entidade_que_esgotou_tentativas(db: AsyncSession) -> None:
-    from src.integration.sync import sincronizar_tudo, MAX_TENTATIVAS, RETRY_DELAYS
+    from src.integration.sync import MAX_TENTATIVAS, sincronizar_tudo
     from src.models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
 
     ue = await _ua_ue(db)
@@ -234,7 +244,7 @@ async def test_sync_ignora_entidade_que_esgotou_tentativas(db: AsyncSession) -> 
     await db.commit()
 
     # Simula última falha com tentativa = MAX_TENTATIVAS (esgotado), mas já antiga
-    old_time = datetime.now(timezone.utc) - timedelta(hours=2)
+    old_time = datetime.now(UTC) - timedelta(hours=2)
     reg = RegistroEnvioAPI(
         tipo_entidade=TipoEntidadeSync.PARTICIPANTE,
         entidade_id=p.id,
@@ -258,8 +268,9 @@ async def test_sync_ignora_entidade_que_esgotou_tentativas(db: AsyncSession) -> 
 # TC-S22-006  Retry incrementa tentativa corretamente
 # ---------------------------------------------------------------------------
 
+
 async def test_sync_incrementa_tentativa_em_nova_falha(db: AsyncSession) -> None:
-    from src.integration.sync import sincronizar_tudo, RETRY_DELAYS
+    from src.integration.sync import RETRY_DELAYS, sincronizar_tudo
     from src.models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
 
     ue = await _ua_ue(db)
@@ -267,7 +278,7 @@ async def test_sync_incrementa_tentativa_em_nova_falha(db: AsyncSession) -> None
     await db.commit()
 
     # Primeira falha (antiga)
-    old_time = datetime.now(timezone.utc) - timedelta(seconds=RETRY_DELAYS[0] + 10)
+    old_time = datetime.now(UTC) - timedelta(seconds=RETRY_DELAYS[0] + 10)
     reg = RegistroEnvioAPI(
         tipo_entidade=TipoEntidadeSync.PARTICIPANTE,
         entidade_id=p.id,
@@ -302,30 +313,29 @@ async def test_sync_incrementa_tentativa_em_nova_falha(db: AsyncSession) -> None
 # TC-S22-007  painel_conformidade retorna contagens corretas
 # ---------------------------------------------------------------------------
 
-async def test_painel_conformidade_contagens(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+
+async def test_painel_conformidade_contagens(db: AsyncSession, client: AsyncClient) -> None:
     from src.models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
-    from datetime import timezone
 
     ue = await _ua_ue(db)
     # 1 participante já sincronizado
     p_sync = await _participante(db, ue, matricula="9991001")
-    p_sync.api_sincronizado_em = datetime.now(timezone.utc)
+    p_sync.api_sincronizado_em = datetime.now(UTC)
     # 1 participante pendente sem tentativa
-    p_pend = await _participante(db, ue, matricula="9991002")
+    await _participante(db, ue, matricula="9991002")
     # 1 participante com erro (elegível para retry)
     p_err = await _participante(db, ue, matricula="9991003")
     await db.flush()
 
     from src.integration.sync import RETRY_DELAYS
+
     reg = RegistroEnvioAPI(
         tipo_entidade=TipoEntidadeSync.PARTICIPANTE,
         entidade_id=p_err.id,
         tentativa=1,
         sucesso=False,
         erro_mensagem="falhou",
-        created_at=datetime.now(timezone.utc) - timedelta(seconds=RETRY_DELAYS[0] + 60),
+        created_at=datetime.now(UTC) - timedelta(seconds=RETRY_DELAYS[0] + 60),
     )
     db.add(reg)
     await db.commit()
@@ -356,19 +366,18 @@ async def test_painel_conformidade_contagens(
     data = resp.json()["data"]["painelConformidade"]["participantes"]
     assert data["total"] == 3
     assert data["enviados"] == 1
-    assert data["pendentes"] == 2   # p_pend + p_err (ambos não enviados)
-    assert data["comErro"] == 1     # apenas p_err tem registro de falha
+    assert data["pendentes"] == 2  # p_pend + p_err (ambos não enviados)
+    assert data["comErro"] == 1  # apenas p_err tem registro de falha
 
 
 # ---------------------------------------------------------------------------
 # TC-S22-008  reprocessar_envio limpa histórico de falhas
 # ---------------------------------------------------------------------------
 
-async def test_reprocessar_envio_limpa_falhas(
-    db: AsyncSession, client: AsyncClient
-) -> None:
-    from src.models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
+
+async def test_reprocessar_envio_limpa_falhas(db: AsyncSession, client: AsyncClient) -> None:
     from src.integration.sync import MAX_TENTATIVAS
+    from src.models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
 
     ue = await _ua_ue(db)
     p = await _participante(db, ue, matricula="9992001")
@@ -376,14 +385,16 @@ async def test_reprocessar_envio_limpa_falhas(
 
     # Esgotou tentativas
     for i in range(1, MAX_TENTATIVAS + 1):
-        db.add(RegistroEnvioAPI(
-            tipo_entidade=TipoEntidadeSync.PARTICIPANTE,
-            entidade_id=p.id,
-            tentativa=i,
-            sucesso=False,
-            erro_mensagem="falhou",
-            created_at=datetime.now(timezone.utc) - timedelta(hours=MAX_TENTATIVAS - i + 1),
-        ))
+        db.add(
+            RegistroEnvioAPI(
+                tipo_entidade=TipoEntidadeSync.PARTICIPANTE,
+                entidade_id=p.id,
+                tentativa=i,
+                sucesso=False,
+                erro_mensagem="falhou",
+                created_at=datetime.now(UTC) - timedelta(hours=MAX_TENTATIVAS - i + 1),
+            )
+        )
     await db.commit()
 
     admin = await persist_user(db, email="adm.repr@test.gov.br", role=UserRole.ADMIN)

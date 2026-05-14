@@ -1,4 +1,5 @@
 """Testes para src/graphql/schema.py — queries GraphQL autenticadas."""
+
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,9 +10,8 @@ from tests.conftest import persist_user, set_auth_cookie
 # TC-M06-006  query { me } — autenticado retorna dados do usuário
 # ---------------------------------------------------------------------------
 
-async def test_graphql_me_authenticated_returns_user(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+
+async def test_graphql_me_authenticated_returns_user(db: AsyncSession, client: AsyncClient) -> None:
     user = await persist_user(db, email="me@test.gov.br", role=UserRole.CHEFE_IMEDIATO)
     set_auth_cookie(client, user)
 

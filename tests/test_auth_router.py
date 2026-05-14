@@ -1,4 +1,5 @@
 """Testes para src/auth/router.py — endpoints /auth/*."""
+
 from unittest.mock import MagicMock, patch
 
 from httpx import AsyncClient
@@ -10,6 +11,7 @@ from tests.conftest import persist_user, set_auth_cookie
 # ---------------------------------------------------------------------------
 # TC-M06-001/002  GET /auth/providers
 # ---------------------------------------------------------------------------
+
 
 async def test_providers_empty_when_no_env_vars(client: AsyncClient) -> None:
     response = await client.get("/auth/providers", headers={"user-agent": "pytest"})
@@ -55,6 +57,7 @@ async def test_providers_both_when_both_configured(client: AsyncClient) -> None:
 # TC-M06-003  GET /auth/login/{provider} — provider não configurado → 404
 # ---------------------------------------------------------------------------
 
+
 async def test_login_unknown_provider_returns_404(client: AsyncClient) -> None:
     response = await client.get(
         "/auth/login/inexistente",
@@ -78,6 +81,7 @@ async def test_callback_unknown_provider_returns_404(client: AsyncClient) -> Non
 # TC-M06-006  GET /auth/me
 # ---------------------------------------------------------------------------
 
+
 async def test_auth_me_unauthenticated_returns_401(client: AsyncClient) -> None:
     response = await client.get("/auth/me", headers={"user-agent": "pytest"})
     assert response.status_code == 401
@@ -97,6 +101,7 @@ async def test_auth_me_returns_user_data(db: AsyncSession, client: AsyncClient) 
 # ---------------------------------------------------------------------------
 # TC-M06-010  POST /auth/logout
 # ---------------------------------------------------------------------------
+
 
 async def test_logout_returns_ok(client: AsyncClient) -> None:
     response = await client.post("/auth/logout", headers={"user-agent": "pytest"})

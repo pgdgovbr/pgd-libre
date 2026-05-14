@@ -7,7 +7,7 @@ prévia da chefia.
 TC-M10-005: criação da autorização com período e janela horária.
 TC-M10-006: PT com `trabalho_noturno=True` sem autorização vigente é rejeitado.
 """
-import uuid
+
 from datetime import date, time
 
 import pytest
@@ -31,12 +31,10 @@ from src.services.participante import (
 )
 from src.services.plano_entregas import criar_entrega, criar_plano_entregas
 from src.services.plano_trabalho import (
-    adicionar_contribuicao,
     criar_plano_trabalho,
 )
 
 from .conftest import persist_user, set_auth_cookie
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -45,23 +43,40 @@ from .conftest import persist_user, set_auth_cookie
 
 async def _setup(db: AsyncSession, admin, cod_ua: int = 140001):
     ua = await criar_unidade_autorizadora(
-        db, cod_unidade_autorizadora=cod_ua, origem_unidade=OrigemUnidade.SIAPE,
-        nome="UA NOT", sigla="UNO", user=admin,
+        db,
+        cod_unidade_autorizadora=cod_ua,
+        origem_unidade=OrigemUnidade.SIAPE,
+        nome="UA NOT",
+        sigla="UNO",
+        user=admin,
     )
     await criar_ato_autorizacao(
-        db, unidade_autorizadora_id=ua.id, autoridade="Min.",
-        data_publicacao=date(2024, 1, 1), referencia="NOT", user=admin,
+        db,
+        unidade_autorizadora_id=ua.id,
+        autoridade="Min.",
+        data_publicacao=date(2024, 1, 1),
+        referencia="NOT",
+        user=admin,
     )
     await db.refresh(ua)
     ui = await criar_unidade_instituidora(
-        db, unidade_autorizadora_id=ua.id, cod_unidade_instituidora=140010,
-        nome="UI NOT", sigla="UIN", ato_instituicao_ref="NOT",
-        data_instituicao=date(2024, 1, 1), tipos_atividades="T",
-        conteudo_minimo_tcr="C", prazo_antecedencia_convocacao_dias=5, user=admin,
+        db,
+        unidade_autorizadora_id=ua.id,
+        cod_unidade_instituidora=140010,
+        nome="UI NOT",
+        sigla="UIN",
+        ato_instituicao_ref="NOT",
+        data_instituicao=date(2024, 1, 1),
+        tipos_atividades="T",
+        conteudo_minimo_tcr="C",
+        prazo_antecedencia_convocacao_dias=5,
+        user=admin,
     )
     ue = UnidadeExecucao(
-        unidade_instituidora_id=ui.id, cod_unidade_executora=140020,
-        nome="UE NOT", sigla="UEN",
+        unidade_instituidora_id=ui.id,
+        cod_unidade_executora=140020,
+        nome="UE NOT",
+        sigla="UEN",
     )
     db.add(ue)
     await db.commit()
@@ -69,7 +84,9 @@ async def _setup(db: AsyncSession, admin, cod_ua: int = 140001):
     return ua, ui, ue
 
 
-async def _make_participante(db, admin, ue, ua, ui, matricula="1400001", cod_ua=140001, modalidade=3):
+async def _make_participante(
+    db, admin, ue, ua, ui, matricula="1400001", cod_ua=140001, modalidade=3
+):
     return await cadastrar_participante(
         db,
         origem_unidade=OrigemUnidade.SIAPE,
@@ -92,24 +109,43 @@ async def _make_participante(db, admin, ue, ua, ui, matricula="1400001", cod_ua=
 async def _make_pe_pt_base(db, admin, ua, ui, ue, p, cod_ua, suffix, *, trabalho_noturno=False):
     """Cria PE + entrega + TCR ativo + retorna o tcr e o PE para uso no PT."""
     tcr = await pactu_tcr(
-        db, participante_id=p.id, chefia_user_id=admin.id,
-        modalidade_execucao=3, regime_execucao=RegimeExecucao.INTEGRAL,
-        prazo_antecedencia_convocacao_dias=5, canais_comunicacao=["email"],
-        responsabilidades="R", ciencia_instalacoes_ergonomia=True,
-        ciencia_nao_direito_adquirido=True, ciencia_custeio_estrutura=True,
+        db,
+        participante_id=p.id,
+        chefia_user_id=admin.id,
+        modalidade_execucao=3,
+        regime_execucao=RegimeExecucao.INTEGRAL,
+        prazo_antecedencia_convocacao_dias=5,
+        canais_comunicacao=["email"],
+        responsabilidades="R",
+        ciencia_instalacoes_ergonomia=True,
+        ciencia_nao_direito_adquirido=True,
+        ciencia_custeio_estrutura=True,
         user=admin,
     )
     await assinar_tcr_chefia(db, tcr_id=tcr.id, user=admin)
     pe = await criar_plano_entregas(
-        db, id_plano_entregas=f"PE-NOT-{suffix}", origem_unidade=OrigemUnidade.SIAPE,
-        cod_unidade_autorizadora=cod_ua, cod_unidade_instituidora=140010,
-        cod_unidade_executora=140020, unidade_execucao_id=ue.id,
-        data_inicio=date(2026, 1, 1), data_termino=date(2026, 12, 31), user=admin,
+        db,
+        id_plano_entregas=f"PE-NOT-{suffix}",
+        origem_unidade=OrigemUnidade.SIAPE,
+        cod_unidade_autorizadora=cod_ua,
+        cod_unidade_instituidora=140010,
+        cod_unidade_executora=140020,
+        unidade_execucao_id=ue.id,
+        data_inicio=date(2026, 1, 1),
+        data_termino=date(2026, 12, 31),
+        user=admin,
     )
     await criar_entrega(
-        db, id_entrega=f"E-NOT-{suffix}", plano_entregas_id=pe.id, nome_entrega="E",
-        meta_entrega=1, tipo_meta=TipoMeta.UNIDADE, data_entrega=date(2026, 12, 31),
-        nome_unidade_demandante="D", nome_unidade_destinataria="D", user=admin,
+        db,
+        id_entrega=f"E-NOT-{suffix}",
+        plano_entregas_id=pe.id,
+        nome_entrega="E",
+        meta_entrega=1,
+        tipo_meta=TipoMeta.UNIDADE,
+        data_entrega=date(2026, 12, 31),
+        nome_unidade_demandante="D",
+        nome_unidade_destinataria="D",
+        user=admin,
     )
     return tcr, pe
 
@@ -163,7 +199,9 @@ async def test_autorizar_adicional_noturno_horario_customizado(db: AsyncSession)
     assert auth.data_fim_autorizacao is None
 
 
-async def test_autorizar_adicional_noturno_data_fim_anterior_inicio_rejeitado(db: AsyncSession):
+async def test_autorizar_adicional_noturno_data_fim_anterior_inicio_rejeitado(
+    db: AsyncSession,
+):
     """Data fim anterior à data início é rejeitada."""
     from src.services.participante import autorizar_adicional_noturno
 
@@ -324,12 +362,20 @@ async def test_criar_pt_noturno_sem_autorizacao_rejeitado(db: AsyncSession):
 
     with pytest.raises(ValidationError, match="[Aa]utorização"):
         await criar_plano_trabalho(
-            db, id_plano_trabalho="PT-NOT-9", origem_unidade=OrigemUnidade.SIAPE,
-            cod_unidade_autorizadora=140009, cod_unidade_executora=140020,
-            cod_unidade_lotacao_participante=140020, participante_id=p.id,
-            cpf_participante=p.cpf, matricula_siape=p.matricula_siape, tcr_id=tcr.id,
-            data_inicio=date(2026, 1, 1), data_termino=date(2026, 6, 30),
-            carga_horaria_disponivel=1040, criterios_avaliacao="CA",
+            db,
+            id_plano_trabalho="PT-NOT-9",
+            origem_unidade=OrigemUnidade.SIAPE,
+            cod_unidade_autorizadora=140009,
+            cod_unidade_executora=140020,
+            cod_unidade_lotacao_participante=140020,
+            participante_id=p.id,
+            cpf_participante=p.cpf,
+            matricula_siape=p.matricula_siape,
+            tcr_id=tcr.id,
+            data_inicio=date(2026, 1, 1),
+            data_termino=date(2026, 6, 30),
+            carga_horaria_disponivel=1040,
+            criterios_avaliacao="CA",
             plano_entregas_id=pe.id,
             trabalho_noturno=True,
             user=admin,
@@ -354,12 +400,20 @@ async def test_criar_pt_noturno_com_autorizacao_ok(db: AsyncSession):
     )
 
     pt = await criar_plano_trabalho(
-        db, id_plano_trabalho="PT-NOT-10", origem_unidade=OrigemUnidade.SIAPE,
-        cod_unidade_autorizadora=140010, cod_unidade_executora=140020,
-        cod_unidade_lotacao_participante=140020, participante_id=p.id,
-        cpf_participante=p.cpf, matricula_siape=p.matricula_siape, tcr_id=tcr.id,
-        data_inicio=date(2026, 1, 1), data_termino=date(2026, 6, 30),
-        carga_horaria_disponivel=1040, criterios_avaliacao="CA",
+        db,
+        id_plano_trabalho="PT-NOT-10",
+        origem_unidade=OrigemUnidade.SIAPE,
+        cod_unidade_autorizadora=140010,
+        cod_unidade_executora=140020,
+        cod_unidade_lotacao_participante=140020,
+        participante_id=p.id,
+        cpf_participante=p.cpf,
+        matricula_siape=p.matricula_siape,
+        tcr_id=tcr.id,
+        data_inicio=date(2026, 1, 1),
+        data_termino=date(2026, 6, 30),
+        carga_horaria_disponivel=1040,
+        criterios_avaliacao="CA",
         plano_entregas_id=pe.id,
         trabalho_noturno=True,
         user=admin,

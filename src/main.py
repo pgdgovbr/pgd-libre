@@ -43,6 +43,19 @@ def create_app() -> FastAPI:
             )
         return await call_next(request)
 
+    @app.middleware("http")
+    async def csp_for_docs(request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        if request.url.path.startswith(("/docs", "/redoc")):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "img-src 'self' data: https://fastapi.tiangolo.com; "
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "font-src 'self' data:"
+            )
+        return response
+
     app.include_router(health_router, tags=["infra"])
     app.include_router(public_router, tags=["public"])
     app.include_router(sync_router)

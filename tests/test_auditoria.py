@@ -1,7 +1,7 @@
 """Sprint 1.6 — Auditoria: testes de imutabilidade e log (TC-M07)."""
+
 from datetime import date
 
-import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,12 +56,10 @@ async def test_audit_log_tem_old_e_new_values_no_update(db: AsyncSession):
         referencia="P001",
         user=admin,
     )
-    from src.services.institucional import atualizar_status_ato
     from src.models.institucional import StatusAto
+    from src.services.institucional import atualizar_status_ato
 
-    await atualizar_status_ato(
-        db, ato_id=ato.id, novo_status=StatusAto.SUSPENSO, user=admin
-    )
+    await atualizar_status_ato(db, ato_id=ato.id, novo_status=StatusAto.SUSPENSO, user=admin)
 
     result = await db.execute(
         select(AuditLog).where(
@@ -77,7 +75,7 @@ async def test_audit_log_tem_old_e_new_values_no_update(db: AsyncSession):
 async def test_audit_log_e_imutavel_sem_delete_api(db: AsyncSession):
     """AuditLog has no update/delete operations exposed in service layer."""
     admin = await persist_user(db, email="a@t.com", role=UserRole.ADMIN)
-    entry = await log_audit(
+    await log_audit(
         db,
         table_name="test_table",
         record_id="abc-123",
@@ -88,15 +86,14 @@ async def test_audit_log_e_imutavel_sem_delete_api(db: AsyncSession):
     await db.commit()
 
     # Verify it's stored
-    result = await db.execute(
-        select(AuditLog).where(AuditLog.table_name == "test_table")
-    )
+    result = await db.execute(select(AuditLog).where(AuditLog.table_name == "test_table"))
     stored = result.scalar_one()
     assert stored.record_id == "abc-123"
     assert stored.new_values["field"] == "value"
 
     # No UPDATE or DELETE functions exist in audit service
     from src.services import audit as audit_svc
+
     public_fns = [fn for fn in dir(audit_svc) if not fn.startswith("_")]
     assert "delete_audit" not in public_fns
     assert "update_audit" not in public_fns

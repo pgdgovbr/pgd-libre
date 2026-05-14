@@ -1,4 +1,5 @@
 """Testes unitários para src/graphql/permissions.py — sem I/O."""
+
 from src.graphql.permissions import (
     IsAdmin,
     IsAuthenticated,
@@ -23,6 +24,7 @@ def _user(role: UserRole) -> User:
 # TC-M06-007  IsAuthenticated
 # ---------------------------------------------------------------------------
 
+
 def test_is_authenticated_blocks_anonymous() -> None:
     assert not IsAuthenticated().has_permission(None, _Info())
 
@@ -38,6 +40,7 @@ def test_is_authenticated_allows_admin() -> None:
 # ---------------------------------------------------------------------------
 # TC-M06-007  IsAdmin
 # ---------------------------------------------------------------------------
+
 
 def test_is_admin_blocks_anonymous() -> None:
     assert not IsAdmin().has_permission(None, _Info())
@@ -63,6 +66,7 @@ def test_is_admin_allows_admin() -> None:
 # TC-M06-008  IsGestorOrAdmin
 # ---------------------------------------------------------------------------
 
+
 def test_is_gestor_or_admin_blocks_anonymous() -> None:
     assert not IsGestorOrAdmin().has_permission(None, _Info())
 
@@ -72,9 +76,7 @@ def test_is_gestor_or_admin_blocks_servidor() -> None:
 
 
 def test_is_gestor_or_admin_blocks_chefe() -> None:
-    assert not IsGestorOrAdmin().has_permission(
-        None, _Info(_user(UserRole.CHEFE_IMEDIATO))
-    )
+    assert not IsGestorOrAdmin().has_permission(None, _Info(_user(UserRole.CHEFE_IMEDIATO)))
 
 
 def test_is_gestor_or_admin_allows_gestor() -> None:
@@ -88,6 +90,7 @@ def test_is_gestor_or_admin_allows_admin() -> None:
 # ---------------------------------------------------------------------------
 # TC-M06-009  IsChefiaOrAbove
 # ---------------------------------------------------------------------------
+
 
 def test_is_chefia_or_above_blocks_anonymous() -> None:
     assert not IsChefiaOrAbove().has_permission(None, _Info())

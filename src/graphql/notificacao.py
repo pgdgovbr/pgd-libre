@@ -1,11 +1,9 @@
 """Tipos Strawberry e helpers para Notificações (Sprint 1.6)."""
+
 import enum
 from datetime import datetime
-from typing import Optional
 
 import strawberry
-
-from ..models.notificacao import TipoEvento
 
 
 @strawberry.enum
@@ -27,8 +25,8 @@ class NotificacaoType:
     conteudo: str
     enviada: bool
     created_at: datetime
-    enviada_em: Optional[datetime]
-    contexto: Optional[strawberry.scalars.JSON]
+    enviada_em: datetime | None
+    contexto: strawberry.scalars.JSON | None
 
 
 def _notificacao_to_type(n) -> NotificacaoType:  # type: ignore[no-untyped-def]

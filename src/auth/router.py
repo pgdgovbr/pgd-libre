@@ -33,9 +33,7 @@ async def list_providers() -> list[dict]:
 async def login(request: Request, provider: str) -> RedirectResponse:
     client = oauth.create_client(provider)
     if client is None:
-        raise HTTPException(
-            status_code=404, detail=f"Provider '{provider}' não configurado"
-        )
+        raise HTTPException(status_code=404, detail=f"Provider '{provider}' não configurado")
     redirect_uri = str(request.url_for("oauth_callback", provider=provider))
     return await client.authorize_redirect(request, redirect_uri)
 
@@ -48,9 +46,7 @@ async def callback(
 ) -> RedirectResponse:
     client = oauth.create_client(provider)
     if client is None:
-        raise HTTPException(
-            status_code=404, detail=f"Provider '{provider}' não configurado"
-        )
+        raise HTTPException(status_code=404, detail=f"Provider '{provider}' não configurado")
 
     try:
         token = await client.authorize_access_token(request)

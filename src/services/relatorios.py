@@ -1,16 +1,16 @@
 """RF-028 — Relatórios de Conformidade."""
-import uuid
+
 from datetime import date, timedelta
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.participante import Afastamento, Participante
 from ..models.plano import (
     STATUS_PE_CONCLUIDO,
     STATUS_PT_CANCELADO,
-    STATUS_PT_EM_EXECUCAO,
     STATUS_PT_CONCLUIDO,
+    STATUS_PT_EM_EXECUCAO,
     AvaliacaoRegistrosExecucao,
     PlanoEntregas,
     PlanoTrabalho,
@@ -56,9 +56,7 @@ async def relatorio_registros_atraso(
         )
     )
     if cod_unidade_autorizadora is not None:
-        q = q.where(
-            PlanoTrabalho.cod_unidade_autorizadora == cod_unidade_autorizadora
-        )
+        q = q.where(PlanoTrabalho.cod_unidade_autorizadora == cod_unidade_autorizadora)
     result = await db.execute(q)
     return list(result.scalars().all())
 
@@ -83,9 +81,7 @@ async def relatorio_avaliacoes_pendentes(
         )
     )
     if cod_unidade_autorizadora is not None:
-        q = q.where(
-            PlanoTrabalho.cod_unidade_autorizadora == cod_unidade_autorizadora
-        )
+        q = q.where(PlanoTrabalho.cod_unidade_autorizadora == cod_unidade_autorizadora)
     result = await db.execute(q)
     return list(result.scalars().all())
 
@@ -102,9 +98,7 @@ async def relatorio_pe_avaliacao_pendente(
         PlanoEntregas.data_termino + timedelta(days=30) < referencia,
     )
     if cod_unidade_autorizadora is not None:
-        q = q.where(
-            PlanoEntregas.cod_unidade_autorizadora == cod_unidade_autorizadora
-        )
+        q = q.where(PlanoEntregas.cod_unidade_autorizadora == cod_unidade_autorizadora)
     result = await db.execute(q)
     return list(result.scalars().all())
 
@@ -117,6 +111,7 @@ async def relatorio_frequencia(
 ) -> list[Participante]:
     """Participantes ativos com plano de trabalho cobrindo o período ano/mes."""
     from calendar import monthrange
+
     ultimo_dia = monthrange(ano, mes)[1]
     inicio_mes = date(ano, mes, 1)
     fim_mes = date(ano, mes, ultimo_dia)
@@ -152,6 +147,7 @@ async def relatorio_afastamentos(
       - data_fim >= inicio_mes (ou data_fim is NULL: afastamento em curso)
     """
     from calendar import monthrange
+
     ultimo_dia = monthrange(ano, mes)[1]
     inicio_mes = date(ano, mes, 1)
     fim_mes = date(ano, mes, ultimo_dia)
@@ -182,21 +178,17 @@ async def relatorio_nao_enviados(
         Participante.api_sincronizado_em.is_(None),
     )
     if cod_unidade_autorizadora is not None:
-        q_p = q_p.where(
-            Participante.cod_unidade_autorizadora == cod_unidade_autorizadora
-        )
+        q_p = q_p.where(Participante.cod_unidade_autorizadora == cod_unidade_autorizadora)
     participantes = list((await db.execute(q_p)).scalars().all())
 
-    from ..models.plano import STATUS_PE_EM_EXECUCAO, STATUS_PE_AVALIADO
+    from ..models.plano import STATUS_PE_AVALIADO, STATUS_PE_EM_EXECUCAO
 
     q_pe = select(PlanoEntregas).where(
         PlanoEntregas.status.in_([STATUS_PE_EM_EXECUCAO, STATUS_PE_CONCLUIDO, STATUS_PE_AVALIADO]),
         PlanoEntregas.api_sincronizado_em.is_(None),
     )
     if cod_unidade_autorizadora is not None:
-        q_pe = q_pe.where(
-            PlanoEntregas.cod_unidade_autorizadora == cod_unidade_autorizadora
-        )
+        q_pe = q_pe.where(PlanoEntregas.cod_unidade_autorizadora == cod_unidade_autorizadora)
     planos_entregas = list((await db.execute(q_pe)).scalars().all())
 
     q_pt = select(PlanoTrabalho).where(
@@ -204,9 +196,7 @@ async def relatorio_nao_enviados(
         PlanoTrabalho.api_sincronizado_em.is_(None),
     )
     if cod_unidade_autorizadora is not None:
-        q_pt = q_pt.where(
-            PlanoTrabalho.cod_unidade_autorizadora == cod_unidade_autorizadora
-        )
+        q_pt = q_pt.where(PlanoTrabalho.cod_unidade_autorizadora == cod_unidade_autorizadora)
     planos_trabalho = list((await db.execute(q_pt)).scalars().all())
 
     return {

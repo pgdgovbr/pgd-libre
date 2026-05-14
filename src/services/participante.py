@@ -1,14 +1,16 @@
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.audit import AuditAction
-from ..models.institucional import OrigemUnidade, UnidadeExecucao
+from ..models.institucional import OrigemUnidade
+from ..models.notificacao import TipoEvento
 from ..models.participante import (
+    TCR,
     Afastamento,
     AutorizacaoAdicionalNoturno,
     Convocacao,
@@ -19,12 +21,10 @@ from ..models.participante import (
     RegimeExecucao,
     StatusConvocacao,
     StatusTCR,
-    TCR,
     TermoGuardaEquipamento,
     TipoAfastamento,
     TipoVinculo,
 )
-from ..models.notificacao import TipoEvento
 from ..models.user import User
 from .audit import log_audit
 from .institucional import ValidationError
@@ -128,9 +128,7 @@ def bloquear_adesao_banco_horas(participante_situacao: int) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def get_carga_compensacao_pendente(
-    db: AsyncSession, participante_id: uuid.UUID
-) -> int:
+async def get_carga_compensacao_pendente(db: AsyncSession, participante_id: uuid.UUID) -> int:
     """Retorna horas de compensação pendentes do último plano com inexecução."""
     from ..models.plano import AvaliacaoRegistrosExecucao, PlanoTrabalho
 
@@ -163,7 +161,7 @@ async def get_carga_compensacao_pendente(
     if tcr_result.scalars().first() is not None:
         return 0
 
-    return avaliacao.horas_inexecucao
+    return avaliacao.horas_inexecucao or 0
 
 
 # ---------------------------------------------------------------------------
@@ -184,8 +182,7 @@ async def registrar_autorizacao_equipamentos(
 ) -> TermoGuardaEquipamento:
     if modalidade_execucao != 3:
         raise ValidationError(
-            "Retirada de equipamentos permitida apenas para teletrabalho integral"
-            " (IN24 Art.16)"
+            "Retirada de equipamentos permitida apenas para teletrabalho integral (IN24 Art.16)"
         )
     termo = TermoGuardaEquipamento(
         participante_id=participante_id,
@@ -231,9 +228,7 @@ async def registrar_afastamento(
     ip_address: str | None = None,
 ) -> Afastamento:
     if data_fim is not None and data_fim < data_inicio:
-        raise ValidationError(
-            "Data fim do afastamento não pode ser anterior à data de início"
-        )
+        raise ValidationError("Data fim do afastamento não pode ser anterior à data de início")
     afa = Afastamento(
         participante_id=participante_id,
         tipo_afastamento=tipo_afastamento,
@@ -280,13 +275,8 @@ async def autorizar_adicional_noturno(
     user: User,
     ip_address: str | None = None,
 ) -> AutorizacaoAdicionalNoturno:
-    if (
-        data_fim_autorizacao is not None
-        and data_fim_autorizacao < data_inicio_autorizacao
-    ):
-        raise ValidationError(
-            "Data fim da autorização não pode ser anterior à data de início"
-        )
+    if data_fim_autorizacao is not None and data_fim_autorizacao < data_inicio_autorizacao:
+        raise ValidationError("Data fim da autorização não pode ser anterior à data de início")
     auth = AutorizacaoAdicionalNoturno(
         participante_id=participante_id,
         data_inicio_autorizacao=data_inicio_autorizacao,
@@ -307,9 +297,7 @@ async def autorizar_adicional_noturno(
         new_values={
             "participante_id": str(participante_id),
             "data_inicio_autorizacao": str(data_inicio_autorizacao),
-            "data_fim_autorizacao": (
-                str(data_fim_autorizacao) if data_fim_autorizacao else None
-            ),
+            "data_fim_autorizacao": (str(data_fim_autorizacao) if data_fim_autorizacao else None),
         },
         ip_address=ip_address,
     )
@@ -366,7 +354,14 @@ def validate_acumulacao_cargos_declaracao(
 ) -> None:
     if not acumula_cargos:
         return
-    if not all([declaracao_plano, declaracao_comparecer, declaracao_contato, declaracao_sincrono]):
+    if not all(
+        [
+            declaracao_plano,
+            declaracao_comparecer,
+            declaracao_contato,
+            declaracao_sincrono,
+        ]
+    ):
         raise ValidationError(
             "Declaração de ausência de prejuízo obrigatória para acumuladores de cargos"
             " (IN52 Art.19)"
@@ -408,16 +403,14 @@ def validate_estagio_probatorio(
     if modalidade_execucao in (2, 3, 4, 5):
         if not cumpriu_estagio_probatorio:
             raise ValidationError(
-                "Teletrabalho exige cumprimento de 1 ano de estágio probatório"
-                " (IN24 Art.10 §2º)"
+                "Teletrabalho exige cumprimento de 1 ano de estágio probatório (IN24 Art.10 §2º)"
             )
 
 
 def validate_data_assinatura_tcr_minima(data: date) -> None:
     if data < MIN_DATA_ASSINATURA_TCR:
         raise ValidationError(
-            "Data de assinatura do TCR anterior ao início da vigência do"
-            " Decreto 11.072/2022"
+            "Data de assinatura do TCR anterior ao início da vigência do Decreto 11.072/2022"
         )
 
 
@@ -444,9 +437,7 @@ def validate_prazo_antecedencia_convocacao(
 # ---------------------------------------------------------------------------
 
 
-async def _count_tt_exterior(
-    db: AsyncSession, unidade_execucao_id: uuid.UUID
-) -> tuple[int, int]:
+async def _count_tt_exterior(db: AsyncSession, unidade_execucao_id: uuid.UUID) -> tuple[int, int]:
     """Returns (total_active, total_exterior_active) for the unidade."""
     total_result = await db.execute(
         select(func.count()).where(
@@ -542,12 +533,8 @@ async def cadastrar_participante(
     return p
 
 
-async def get_participante(
-    db: AsyncSession, participante_id: uuid.UUID
-) -> Participante | None:
-    result = await db.execute(
-        select(Participante).where(Participante.id == participante_id)
-    )
+async def get_participante(db: AsyncSession, participante_id: uuid.UUID) -> Participante | None:
+    result = await db.execute(select(Participante).where(Participante.id == participante_id))
     return result.scalar_one_or_none()
 
 
@@ -561,9 +548,7 @@ async def desligar_participante(
 ) -> Participante:
     validate_motivo_desligamento_required(motivo)
 
-    result = await db.execute(
-        select(Participante).where(Participante.id == participante_id)
-    )
+    result = await db.execute(select(Participante).where(Participante.id == participante_id))
     p = result.scalar_one_or_none()
     if p is None:
         raise ValidationError("Participante não encontrado")
@@ -670,7 +655,10 @@ async def pactu_tcr(
         record_id=str(tcr.id),
         action=AuditAction.CREATE,
         user=user,
-        new_values={"participante_id": str(participante_id), "status": StatusTCR.PENDENTE.value},
+        new_values={
+            "participante_id": str(participante_id),
+            "status": StatusTCR.PENDENTE.value,
+        },
         ip_address=ip_address,
     )
     await db.commit()
@@ -742,9 +730,7 @@ async def criar_convocacao(
     # Fetch TCR ativo to get prazo
     tcr = await get_tcr_ativo(db, participante_id)
     if tcr is None:
-        raise ValidationError(
-            "Participante não possui TCR ativo para emissão de convocação"
-        )
+        raise ValidationError("Participante não possui TCR ativo para emissão de convocação")
 
     validate_prazo_antecedencia_convocacao(
         data_convocacao,

@@ -4,34 +4,36 @@ Cada jornada verifica um fluxo completo end-to-end via serviços (banco real) e
 mutações GraphQL onde a Sprint 2.4 introduziu novos endpoints. As jornadas são
 independentes entre si (cada uma cria seu próprio estado).
 """
-from datetime import date, datetime, timezone, timedelta
+
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock
-import uuid
 
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.audit import AuditLog
-from src.models.institucional import OrigemUnidade, StatusPgd, UnidadeExecucao
+from src.models.institucional import OrigemUnidade, UnidadeExecucao
 from src.models.notificacao import Notificacao
 from src.models.participante import RegimeExecucao, TipoVinculo
 from src.models.plano import (
-    STATUS_PE_EM_EXECUCAO,
     STATUS_PT_CANCELADO,
     STATUS_PT_EM_EXECUCAO,
-    TipoMeta,
+    DecisaoRecurso,
     PlanoTrabalho,
+    TipoMeta,
 )
 from src.models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
 from src.models.user import UserRole
-from src.services.avaliacao import avaliar_registros_execucao, abrir_recurso, decidir_recurso
+from src.services.avaliacao import (
+    abrir_recurso,
+    avaliar_registros_execucao,
+    decidir_recurso,
+)
 from src.services.institucional import (
-    ValidationError,
     criar_ato_autorizacao,
     criar_unidade_autorizadora,
     criar_unidade_instituidora,
-    suspender_pgd,
 )
 from src.services.participante import (
     assinar_tcr_chefia,
@@ -51,9 +53,7 @@ from src.services.plano_trabalho import (
     iniciar_execucao_pt,
     registrar_execucao,
 )
-from src.models.plano import DecisaoRecurso
 from tests.conftest import persist_user, set_auth_cookie
-
 
 # ---------------------------------------------------------------------------
 # Helpers comuns
@@ -306,9 +306,7 @@ async def test_ju01_configuracao_pgd(db: AsyncSession, client: AsyncClient) -> N
 
     # Verificar audit logs (≥3 — um por mutation)
     result = await db.execute(
-        select(func.count()).select_from(AuditLog).where(
-            AuditLog.user_id == admin.id
-        )
+        select(func.count()).select_from(AuditLog).where(AuditLog.user_id == admin.id)
     )
     assert result.scalar_one() >= 3
 
@@ -418,7 +416,7 @@ async def test_ju03_ciclo_plano_avaliacao(db: AsyncSession, client: AsyncClient)
     ua, ui, ue = await _base(db, admin, cod_ua=303001)
 
     p = await _participante(db, admin, ue, ua, ui, matricula="3030010")
-    tcr = await _tcr(db, admin, p)
+    await _tcr(db, admin, p)
     pe = await _pe_com_entrega(db, admin, ue, ua, ui, "JU03")
     pt = await _pt_com_contribuicao(db, admin, p, pe, ua, ue, "JU03")
 
@@ -593,10 +591,10 @@ async def test_ju05_selecao_excesso_candidatos(db: AsyncSession, client: AsyncCl
             "nVagas": 2,
             "criteriosTecnicos": "Experiência em gestão e teletrabalho documentada",
             "candidatos": [
-                {"id": "C1", "nome": "Alice",   "criterio": "SEM_PRIORIDADE"},
-                {"id": "C2", "nome": "Bob",     "criterio": "PCD"},
-                {"id": "C3", "nome": "Carla",   "criterio": "MOBILIDADE_REDUZIDA"},
-                {"id": "C4", "nome": "Diego",   "criterio": "RESP_PCD"},
+                {"id": "C1", "nome": "Alice", "criterio": "SEM_PRIORIDADE"},
+                {"id": "C2", "nome": "Bob", "criterio": "PCD"},
+                {"id": "C3", "nome": "Carla", "criterio": "MOBILIDADE_REDUZIDA"},
+                {"id": "C4", "nome": "Diego", "criterio": "RESP_PCD"},
                 {"id": "C5", "nome": "Eduarda", "criterio": "HORARIO_ESPECIAL"},
             ],
         }
@@ -638,9 +636,7 @@ async def test_ju05_selecao_excesso_candidatos(db: AsyncSession, client: AsyncCl
 # ---------------------------------------------------------------------------
 
 
-async def test_ju06_suspensao_pgd_cancela_planos(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_ju06_suspensao_pgd_cancela_planos(db: AsyncSession, client: AsyncClient) -> None:
     """JU-06: suspenderPgd cancela todos os PlanoTrabalho em execução.
 
     Verifica: PTs com status=cancelado e notificação criada.
@@ -661,9 +657,7 @@ async def test_ju06_suspensao_pgd_cancela_planos(
         pts_ids.append(pt.id)
 
     # Verificar que PTs estão em execução
-    result = await db.execute(
-        select(PlanoTrabalho).where(PlanoTrabalho.id.in_(pts_ids))
-    )
+    result = await db.execute(select(PlanoTrabalho).where(PlanoTrabalho.id.in_(pts_ids)))
     pts_before = result.scalars().all()
     assert all(pt.status == STATUS_PT_EM_EXECUCAO for pt in pts_before)
 
@@ -688,9 +682,7 @@ async def test_ju06_suspensao_pgd_cancela_planos(
 
     # Verificar PTs cancelados
     await db.refresh(pts_before[0])
-    result = await db.execute(
-        select(PlanoTrabalho).where(PlanoTrabalho.id.in_(pts_ids))
-    )
+    result = await db.execute(select(PlanoTrabalho).where(PlanoTrabalho.id.in_(pts_ids)))
     pts_after = result.scalars().all()
     assert all(pt.status == STATUS_PT_CANCELADO for pt in pts_after)
 
@@ -818,7 +810,7 @@ async def test_ju08_delegacao_aprovar_pe(db: AsyncSession, client: AsyncClient) 
     )
     assert r_deleg.status_code == 200
     assert r_deleg.json().get("errors") is None, r_deleg.json().get("errors")
-    deleg_id = r_deleg.json()["data"]["delegarCompetencia"]["id"]
+    assert r_deleg.json()["data"]["delegarCompetencia"]["id"]
 
     # 2. chefia (agora delegatária) aprova o PE via GQL
     set_auth_cookie(client, chefia)

@@ -1,6 +1,6 @@
 # Plano de Implementação — PGD Libre
 
-**Versão:** 0.4 — 2026-05-13  
+**Versão:** 0.6 — 2026-05-14  
 **Escopo principal:** Plataforma na ponta (instalada no órgão)  
 **Stack base:** Python + GraphQL  
 **Horizontes futuros:** Aplicativo móvel · API PGD Central 2.0 · Analytics central
@@ -60,7 +60,7 @@
 | **GraphQL Layer** | Resolvers, autenticação JWT, autorização RBAC por resolver |
 | **Domain Services** | Regras de negócio, validações, orquestração de workflows |
 | **Repository / ORM** | Persistência (SQLAlchemy async) |
-| **Worker (Background)** | Envio à API PGD Central, notificações por e-mail, lembrete de prazos |
+| **Sync HTTP endpoint** | Endpoint interno `POST /internal/sync` protegido por shared secret, disparado periodicamente pelo Cloud Scheduler para envio à API PGD Central; notificações por e-mail e lembretes de prazo seguem o mesmo padrão (endpoint interno + cron externo) |
 | **Web UI** | Interface responsiva (HTML/CSS/JS ou framework SPA) |
 
 ---
@@ -250,7 +250,7 @@ Justificativa: o domínio do PGD é rico em tipos e validações; Strawberry eli
 | **Driver PostgreSQL** | psycopg 3 (psycopg[binary]) | ≥ 3.2.1 (versão api-pgd) | **Importante:** api-pgd usa `psycopg` v3 (não `asyncpg` nem `psycopg2`); manter consistência |
 | **Validação** | Pydantic v2 | pydantic[email] ≥ 2.8.2 (versão api-pgd) | Pydantic v2 é muito mais rápido; api-pgd já usa; necessário `[email]` para validar e-mails |
 | **Banco de Dados** | PostgreSQL 16 | postgres:16 (versão docker-compose api-pgd) | api-pgd já usa PostgreSQL 16 no docker-compose; manter compatibilidade |
-| **Background Jobs** | Apache Airflow (Cloud Composer no GCP) | apache-airflow ≥ 2.9 | Envio à API Central, notificações, sincronizações agendadas; Cloud Composer é o Airflow gerenciado no GCP — elimina operação manual do scheduler |
+| **Tarefas agendadas** | Cloud Scheduler (GCP) + endpoint HTTP no próprio app | — | Endpoint interno `POST /internal/sync` protegido por header `X-Sync-Secret` é chamado pelo Cloud Scheduler em frequência configurável. Mesmo padrão para notificações e lembretes. Decisão tomada para evitar a complexidade operacional do Airflow/Cloud Composer (custo alto, curva de aprendizado, surface de manutenção) — o domínio não justifica DAGs complexos |
 | **Autenticação** | authlib + Gov.br OIDC (prod) / Google OAuth (dev) | authlib ≥ 1.3 | Gov.br via OAuth2/OIDC (`https://sso.acesso.gov.br`); padrão do portal DGB; Google OAuth para desenvolvimento; authlib substitui python-jose — mais ativamente mantido e sem CVEs conhecidos |
 | **Senha** | passlib + bcrypt | passlib ≥ 1.7.4, bcrypt ≥ 4.0.1 (versões api-pgd) | Mesmas versões da api-pgd |
 | **HTTP Client** | httpx (async) | ≥ 0.27.0 (versão api-pgd) | Mesmo cliente da api-pgd; usado nos testes e no client da API Central |
@@ -260,7 +260,7 @@ Justificativa: o domínio do PGD é rico em tipos e validações; Strawberry eli
 | **Testes** | pytest + pytest-asyncio + httpx | pytest ≥ 8.2.2 (versão api-pgd) | Mesmas ferramentas da api-pgd |
 | **Qualidade** | ruff (lint + format), mypy | ruff ≥ 0.4, mypy ≥ 1.10 | ruff substitui flake8 + isort + black |
 | **Frontend Web** | SvelteKit | ≥ 2.0 | TypeScript-native SPA; graphql-codegen gera tipos e queries a partir do SDL exportado pelo Strawberry; ótima DX com SSR opcional |
-| **Infraestrutura** | GCP (Cloud Run, Cloud SQL, Cloud Composer, Artifact Registry, Secret Manager) | — | Todos os ambientes (dev, testes, demos, produção) em GCP; Cloud Run para os serviços; Cloud SQL PostgreSQL 16; Secret Manager para credenciais |
+| **Infraestrutura** | GCP (Cloud Run, Cloud SQL, Cloud Scheduler, Artifact Registry, Secret Manager) | — | Todos os ambientes (dev, testes, demos, produção) em GCP; Cloud Run para os serviços; Cloud SQL PostgreSQL 16; Cloud Scheduler para disparos periódicos dos endpoints internos; Secret Manager para credenciais |
 | **IaC** | Terraform | ≥ 1.7 | Gerenciamento declarativo de toda a infraestrutura GCP; estado remoto no GCS; nunca rodar `apply` manualmente — somente via CI |
 | **CI/CD** | GitHub Actions | — | Lint, testes, build de imagem, push para Artifact Registry e deploy no Cloud Run — tudo por workflow; ambientes separados por branch |
 | **E-mail** | fastapi-mail | ≥ 1.4.1 (versão api-pgd) | Mesma biblioteca da api-pgd; notificações de avaliação, prazos |
@@ -301,10 +301,13 @@ pgd-libre/
 │   │   └── notificacao/        # E-mail, alertas de prazo (RF-029)
 │   │
 │   ├── integration/            # Integração com API PGD Central
-│   │   ├── api_pgd_client.py   # HTTP client httpx async; auth POST /token
+│   │   ├── client.py           # HTTP client httpx async; auth POST /token
 │   │   ├── mapper.py           # Local → contrato API Central (Participante, PE, PT)
-│   │   ├── sync_service.py     # Lógica de sincronização, retentativas, backoff
-│   │   └── airflow_dags/       # DAGs do Airflow para envio à API Central e notificações
+│   │   └── sync.py             # Lógica de sincronização, retentativas, backoff exponencial
+│   │
+│   ├── api/                    # Endpoints HTTP não-GraphQL
+│   │   └── sync.py             # POST /internal/sync (chamado pelo Cloud Scheduler;
+│   │                           # protegido por header X-Sync-Secret)
 │   │
 │   ├── graphql/                # Schema GraphQL
 │   │   ├── schema.py           # Composição do schema final (query + mutation + subscription)
@@ -317,10 +320,9 @@ pgd-libre/
 │   │   ├── models.py           # SQLAlchemy: AuditLog (imutável)
 │   │   └── middleware.py       # Captura automática de mudanças
 │   │
-│   └── workers/                # Background tasks
-│       ├── sync_api.py         # Worker de envio à API PGD Central
-│       ├── notify.py           # Worker de notificações por e-mail
-│       └── reminders.py        # Worker de lembretes de prazo (cron diário)
+│   └── jobs/                   # Lógica disparada pelos endpoints internos
+│       ├── notify.py           # Notificações por e-mail (chamado por /internal/notify)
+│       └── reminders.py        # Lembretes de prazo (chamado por /internal/reminders)
 │
 ├── frontend/                   # Web UI
 │   ├── templates/              # Jinja2 (health/redirect pages); app SvelteKit em repo separado
@@ -353,7 +355,7 @@ A api-pgd de referência usa as seguintes escolhas que devem ser replicadas ou c
 | Volumes para dados | `./mnt/pgdata:/var/lib/postgresql/data` | Manter padrão; documentar política de backup |
 | Variáveis sensíveis | Em texto claro no compose (aceitável para dev) | Separar em `.env` (nunca commitado); `.env.example` no repo |
 
-**Diferença relevante:** o PGD Libre usa Apache Airflow para os workers de background (envio à API Central, notificações). Em produção, Cloud Composer (Airflow gerenciado no GCP); em desenvolvimento local, Airflow via Docker Compose.
+**Diferença relevante:** o PGD Libre **não** usa background workers persistentes nem orquestrador (Airflow/Cloud Composer descartados pelo overhead operacional). A sincronização com a API Central e demais tarefas periódicas são expostas como endpoints HTTP internos protegidos por shared secret (`/internal/sync`, futuros `/internal/notify`, `/internal/reminders`). Em produção, o **Cloud Scheduler** chama esses endpoints em frequência configurável; em desenvolvimento local, basta `curl` ou agendamento via cron do sistema operacional.
 
 ```yaml
 # Exemplo de variáveis de ambiente mínimas (docker-compose.yml)
@@ -362,9 +364,10 @@ environment:
   SECRET_KEY: <openssl rand -hex 32>
   ACCESS_TOKEN_EXPIRE_MINUTES: 30
   ALGORITHM: HS256
-  API_PGD_CENTRAL_URL: https://api.pgd.gov.br
-  API_PGD_CENTRAL_USER: <email do sistema>
-  API_PGD_CENTRAL_PASSWORD: <senha do sistema>
+  API_PGD_URL: https://api.pgd.gov.br
+  API_PGD_USERNAME: <email do sistema>
+  API_PGD_PASSWORD: <senha do sistema>
+  SYNC_SECRET: <openssl rand -hex 32>      # cabeçalho X-Sync-Secret validado em /internal/sync
   MAIL_SERVER: smtp4dev
   MAIL_PORT: 25
   MAIL_FROM: pgd@orgao.gov.br
@@ -383,20 +386,17 @@ environment:
 - [x] Repositório Git com estrutura de pastas (conforme seção 4)
 - [x] `.env.example` com todas as variáveis documentadas; `.env` no `.gitignore`
 - [x] Docker Compose: PostgreSQL 16 + smtp4dev + app
-- [ ] Dockerfile baseado em `python:3.12-slim-bookworm` com limpeza de cache apt (padrão api-pgd)
+- [x] Dockerfile baseado em `python:3.12-slim-bookworm` com limpeza de cache apt (padrão api-pgd) — implementado em `Dockerfile` (non-root user, port 8000)
 - [x] FastAPI bootstrapado com health check (`/health` inclui verificação de conexão com DB, padrão api-pgd) — **testes: `test_health.py`**
-- [ ] Middleware CSP nos endpoints `/docs` e `/redoc` (padrão api-pgd)
+- [x] Middleware CSP nos endpoints `/docs` e `/redoc` (padrão api-pgd) — **teste: `test_csp.py`**
 - [x] Middleware de verificação de `User-Agent` (padrão api-pgd — rejeita requisições sem cabeçalho) — **teste: `test_health_requires_user_agent`**
 - [x] SQLAlchemy async configurado + Alembic; connection string `postgresql+psycopg://` (psycopg v3)
 - [x] Autenticação OAuth2/OIDC via `authlib`: Google OAuth em dev, Gov.br (`https://sso.acesso.gov.br`) em produção — seguir padrão do portal DGB (`auth.ts`); variáveis de ambiente controlam qual provider está ativo — **testes: `test_auth_deps.py`, `test_auth_router.py`**
-- [ ] Recuperação de senha via e-mail (fastapi-mail + smtp4dev em dev)
 - [x] RBAC: permissões por papel implementadas nos resolvers GraphQL (`permissions.py`) — **testes: `test_permissions.py`**
 - [x] Schema base do GraphQL (Strawberry): Query `health` + `me` funcionando via GraphiQL — **testes: `test_graphql.py`**
 - [x] Modelos `User` e `AuditLog` com enums, defaults e constraints — **testes: `test_models.py`**
-- [ ] **Spike de 1 semana:** protótipo com 2 resolvers de domínio real (ex.: criar participante + listar) para validar a stack antes de comprometer toda a Fase 1
-- [ ] **GCP/CI setup:** repositório no GitHub; workflows do GitHub Actions para lint, testes, build e push de imagem para Artifact Registry; Terraform para Cloud Run + Cloud SQL; Secret Manager para credenciais (Gov.br client_id/secret, connection string do banco)
-- [ ] Pipeline CI: lint (ruff), type check (mypy), testes (pytest ≥ 8.2.2 + pytest-asyncio + httpx ≥ 0.27.0)
-- [ ] AuditLog: middleware/decorator que captura mudanças automaticamente (modelo já existe)
+- [ ] **Repo `infra/` com Terraform e workflows GitOps** — repo novo em `/Users/nitai/dev/destaquesgovbr/pgd-libre/infra/`, coexistindo com `destaquesgovbr/infra` no mesmo projeto GCP `inspire-7-finep`. Prefixo `pgd-libre-` em todos os recursos. State em bucket exclusivo `pgd-libre-terraform-state`. Cloud SQL dedicado (`pgd-libre-postgres`). Reaproveita pool WIF existente `github-pool`.
+- [x] Pipeline CI no repo `pgd-libre`: `.github/workflows/ci.yml` com ruff + mypy + pytest (service container PostgreSQL 16)
 
 **Entregável:** Ambiente de desenvolvimento funcional. Endpoint `/health`, login/logout, schema GraphQL vazio mas navegável via GraphiQL. **Nenhum dado de negócio ainda.**
 
@@ -485,11 +485,12 @@ environment:
 - Verificação de `User-Agent` obrigatório nas requisições à API Central (a api-pgd rejeita requisições sem esse header)
 
 **Sprint 2.2 — Automação e Monitoramento (2 sem)**
-- DAG Airflow para envio periódico configurável à API Central (RF-024); retry com backoff; painel de status no Cloud Composer
+- Endpoint interno `POST /internal/sync` protegido por header `X-Sync-Secret` (env var `SYNC_SECRET`); disparado periodicamente pelo **Cloud Scheduler** (RF-024)
 - Lógica de coleta: participantes com situação/modalidade alterada + planos com status 3/4/5 e `api_sincronizado_em` desatualizado
-- Painel de conformidade: total enviado com sucesso, total com erro (com detalhes), total pendente (RF-024)
-- Reprocessamento manual de envios com falha
-- `RegistroEnvioAPI`: histórico completo com `tentativa`, `http_status`, `resposta_body`
+- Backoff exponencial in-process (delays 1 min / 5 min / 30 min — ver `RETRY_DELAYS` em `src/integration/sync.py`); um erro num registo não interrompe os demais
+- Painel de conformidade (GraphQL): total enviado com sucesso, total com erro (com detalhes), total pendente (RF-024)
+- Reprocessamento manual de envios com falha via mutation `reprocessarEnvio`
+- `RegistroEnvioAPI`: histórico completo com `tentativa`, `http_status`, `erro_mensagem`
 
 **Sprint 2.3 — Escalas customizadas e Multi-tenant (1–2 sem)**
 - Configuração de escala de avaliação própria com conversão automática para escala padrão 1–5 (RF-031)
@@ -588,7 +589,7 @@ environment:
 **Visão:** Plataforma de dados consolidados no MGI para análise do PGD em escala nacional.
 
 **Componentes:**
-- **Pipeline de ingestão:** Apache Airflow (Cloud Composer no GCP) recebendo dados de todos os órgãos via API Central
+- **Pipeline de ingestão:** Apache Airflow (Cloud Composer no GCP) recebendo dados de todos os órgãos via API Central — esse uso de Airflow é específico do agregador do MGI (volume e variedade de fontes justificam orquestrador). O PGD Libre na ponta de cada órgão **não** usa Airflow (ver seção 3).
 - **Data Warehouse:** BigQuery ou PostgreSQL + dbt para transformações
 - **Dashboards BI:** Superset ou Metabase para análises executivas (produtividade, distribuição de modalidades, adesão por órgão)
 - **IA para gestores:** detecção de padrões (unidades sistematicamente com avaliação "inadequado", correlação entre modalidade e desempenho)
@@ -652,14 +653,16 @@ Horizontes futuros (estimativas de alto nível):
 |---------|---------|
 | Stack GraphQL | **Strawberry + FastAPI** (ver seção 2) |
 | Frontend Web | **SvelteKit** |
-| Background jobs | **Apache Airflow** (Cloud Composer no GCP) |
+| Tarefas agendadas | **Cloud Scheduler** chamando endpoints HTTP internos (`/internal/sync`, etc.) protegidos por `X-Sync-Secret`. Sem orquestrador/worker persistente — Airflow descartado |
 | App Móvel stack | **Flutter** (`artemis` para codegen Dart) |
 | Modelo de instalação | **Self-hosted** (Docker Compose por órgão) |
 | Autenticação federada | **Gov.br OIDC** em produção + Google OAuth em dev (padrão do portal DGB) |
 | Biblioteca OAuth/JWT | **authlib ≥ 1.3** (substitui python-jose — melhor manutenção, sem CVEs conhecidos) |
-| Infraestrutura | **GCP** (Cloud Run, Cloud SQL, Cloud Composer, Artifact Registry, Secret Manager) |
+| Infraestrutura | **GCP** (Cloud Run, Cloud SQL, Cloud Scheduler, Artifact Registry, Secret Manager) |
 | IaC | **Terraform** (estado remoto no GCS; apply só via CI) |
 | CI/CD | **GitHub Actions** |
+| AuditLog | **Chamadas explícitas pelos services** (38 call sites em `src/services/*.py`). Listener SQLAlchemy automático foi descartado: perde contexto semântico (ação específica como APROVAR vs REJEITAR — ambos seriam UPDATE), perde `user`/`ip_address`/`old_values` capturados antes de mutações, e dificulta capturar estado anterior em operações complexas |
+| Convenção de nomes GCP | **Prefixo `pgd-libre-`** em todos os recursos (Cloud Run, Cloud SQL, Secret Manager, Artifact Registry, Cloud Scheduler, service accounts). Coexistência com Destaques Gov BR (`destaquesgovbr-*`) no mesmo projeto `inspire-7-finep`. Terraform state em bucket exclusivo `pgd-libre-terraform-state`. Cloud SQL dedicado (`pgd-libre-postgres`, PostgreSQL 16). Reaproveita pool WIF `github-pool` já existente no projeto |
 
 ### Decisões ainda em aberto
 
@@ -667,7 +670,7 @@ Horizontes futuros (estimativas de alto nível):
 |---------|--------|-------------------|
 | **Versão do SDL como artefato** | SDL gerado em CI e publicado no release vs apenas em desenvolvimento local | Necessário se o app mobile for desenvolvido por equipe separada; versionamento garante compatibilidade entre releases |
 | **Estratégia de testes de contrato** | pact-python vs rodar docker-compose da api-pgd no CI | docker-compose da api-pgd no CI é mais simples e garante teste real contra a implementação de referência |
-| **Política de backup no órgão** | `pg_dump` diário via Cloud Scheduler vs WAL archiving (pgbackrest/Barman) | `pg_dump` é suficiente para a maioria dos órgãos; WAL archiving para RPO < 1h em órgãos de alta criticidade |
+| **Política de backup no órgão** | Backups automatizados nativos do Cloud SQL vs `pg_dump` agendado vs WAL archiving (pgbackrest/Barman) | Cloud SQL já oferece backups automáticos e PITR; suficiente para a maioria dos órgãos. `pg_dump` adicional para portabilidade entre instalações; WAL archiving para RPO < 1h em órgãos de alta criticidade |
 | **Caminho Gov.br → Keycloak** | OIDC direto no Gov.br vs via instância Keycloak própria | Keycloak desacopla a app do provider externo e facilita LDAP/AD paralelo; decisão impacta arquitetura de auth antes da Fase 0 |
 
 ---
@@ -676,7 +679,7 @@ Horizontes futuros (estimativas de alto nível):
 
 1. **Decidir Gov.br direto vs Keycloak** — única decisão de auth ainda em aberto; impacta a arquitetura desde a Fase 0 (ver seção 9)
 2. **Spike técnico** de 1 semana: criar protótipo com Strawberry + FastAPI + SQLAlchemy async (psycopg v3) com 2 resolvers de domínio do PGD; autenticação com authlib (Google OAuth em dev); exportar SDL; gerar tipos TypeScript com graphql-codegen
-3. **Setup GCP/Terraform/GitHub Actions:** criar projeto GCP, habilitar APIs (Cloud Run, Cloud SQL, Cloud Composer, Artifact Registry, Secret Manager), Terraform para infra base, workflows de CI/CD mínimos (lint + testes + build + deploy)
+3. **Setup GCP/Terraform/GitHub Actions:** criar projeto GCP, habilitar APIs (Cloud Run, Cloud SQL, Cloud Scheduler, Artifact Registry, Secret Manager), Terraform para infra base, workflows de CI/CD mínimos (lint + testes + build + deploy)
 4. **Registrar client_id Gov.br** na plataforma de homologação do MGI (acesso.gov.br) para ter credenciais antes de iniciar a Fase 1
 5. **Revisar e priorizar RFs** do documento `01-requisitos-funcionais.md` com stakeholders para confirmar escopo do MVP
 6. **Criar repositório** `pgd-libre/app` com estrutura de pastas da seção 4, incluindo `.env.example`
@@ -686,10 +689,77 @@ Horizontes futuros (estimativas de alto nível):
 
 ## 11. Notas da Revisão
 
-**Versão:** 0.4 — 2026-05-13  
+**Versão:** 0.6 — 2026-05-14  
 **Revisor:** Decisões tecnológicas confirmadas pelo responsável do projeto
 
-### O que foi alterado e por quê
+### Alterações v0.6 — 2026-05-14
+
+**Fechamento da Fase 0.** Cinco decisões tomadas após auditoria do que ainda estava
+não-marcado no checklist:
+
+1. **Dockerfile** — marcado como feito (`[x]`). O arquivo já existia em `Dockerfile`
+   com o padrão exato pedido (`python:3.12-slim-bookworm`, non-root, port 8000); só
+   faltava marcar.
+
+2. **Recuperação de senha removida do checklist.** A v0.3 fechou Gov.br OIDC + Google
+   OAuth, e o modelo `User` não tem `password_hash` — só `oauth_sub`/`oauth_provider`.
+   O item ficou obsoleto e foi removido (não há recuperação de senha local a fazer).
+
+3. **Spike técnico removido do checklist.** As Sprints 1.1–2.8 (304 testes verdes)
+   já validaram retroativamente a stack Strawberry + FastAPI + SQLAlchemy async +
+   psycopg v3. Spike formal perdeu propósito.
+
+4. **AuditLog automático descartado** — promovido a decisão fechada na seção 9.
+   O pattern manual (38 call sites em `src/services/*.py`) carrega contexto
+   semântico (ação específica, `user`, `ip_address`, `old_values`) que um listener
+   SQLAlchemy automático perderia.
+
+5. **Estrutura de IaC redesenhada.** O item genérico "GCP/CI setup" foi
+   reescrito como dois itens distintos: (a) repo `infra/` em
+   `/Users/nitai/dev/destaquesgovbr/pgd-libre/infra/`, coexistindo lado a lado
+   com o `destaquesgovbr/infra` no mesmo projeto GCP `inspire-7-finep` via
+   prefixo `pgd-libre-` em todos os recursos, com state em bucket exclusivo
+   `pgd-libre-terraform-state` e Cloud SQL dedicado `pgd-libre-postgres`;
+   (b) pipeline CI no próprio repo `pgd-libre/.github/workflows/ci.yml`
+   (lint + mypy + pytest com Postgres 16 service container). A convenção de
+   nomes virou decisão fechada (seção 9).
+
+Plano executivo de fechamento em `_plan/fase-0-conclusao.md`.
+
+### Alterações v0.5 — 2026-05-14
+
+**Apache Airflow descartado — substituído por Cloud Scheduler + endpoint HTTP.**
+
+Após reavaliação do overhead operacional do Airflow/Cloud Composer (custo mínimo de
+~US$ 400/mês, curva de aprendizado, surface de patches/upgrades, complexidade de
+deploy de DAGs) versus a simplicidade do domínio (uma sincronização periódica com
+retry/backoff in-process, sem dependências entre tarefas, sem fan-out), a equipe
+optou por uma abordagem mais leve:
+
+- **Endpoint interno** `POST /internal/sync` protegido por header `X-Sync-Secret`
+  (env var `SYNC_SECRET`) já implementado em `src/api/sync.py`
+- **Cloud Scheduler** chama esse endpoint na frequência desejada (ex.: diário às 03h)
+- Retry/backoff exponencial é responsabilidade do próprio service de sincronização
+  (delays 1 min / 5 min / 30 min — ver `RETRY_DELAYS` em `src/integration/sync.py`)
+- Mesmo padrão será usado para notificações por e-mail e lembretes de prazo
+
+**Trade-offs:**
+- ✅ Operação trivial: sem orquestrador para manter, sem DAGs para deployar
+- ✅ Stack 100% Python — sem Airflow runtime separado
+- ✅ Custo Cloud Scheduler é desprezível (3 jobs grátis/mês, depois ~US$ 0.10/job/mês)
+- ❌ Sem UI de monitoramento gráfico estilo Airflow — substituído pelo painel
+  GraphQL `painelConformidade` + tabela `RegistroEnvioAPI` (já implementados)
+- ❌ Sem retries de infra-nível: se o app cair, o Scheduler não tem fila persistente.
+  Mitigação: Cloud Scheduler tem retry configurável próprio (até 5 tentativas com
+  backoff exponencial nativo), e o próximo disparo periódico recupera entidades
+  ainda não sincronizadas (`api_sincronizado_em IS NULL`).
+
+**Seções afetadas:** 1.3 (separação de responsabilidades), 3 (stack), 4 (estrutura
+de pastas — `airflow_dags/` removida, `src/api/` adicionada), 4.1 (Docker Compose),
+5.2.2 (Sprint 2.2), 6.3 (nota: Airflow continua relevante para o agregador do MGI,
+mas não para a ponta), 9 (decisões fechadas), 10 (próximos passos).
+
+### v0.4 e anteriores: o que foi alterado e por quê
 
 **Seção 2 — Comparativo de stacks GraphQL**
 

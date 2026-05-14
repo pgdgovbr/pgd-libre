@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from sqlalchemy import select
@@ -33,8 +33,8 @@ def _make_mail_config() -> ConnectionConfig:
     s = get_settings()
     return ConnectionConfig(
         MAIL_USERNAME=s.MAIL_USERNAME,
-        MAIL_PASSWORD=s.MAIL_PASSWORD,
-        MAIL_FROM=s.MAIL_FROM,
+        MAIL_PASSWORD=s.MAIL_PASSWORD,  # type: ignore[arg-type]
+        MAIL_FROM=s.MAIL_FROM,  # type: ignore[arg-type]
         MAIL_PORT=s.MAIL_PORT,
         MAIL_SERVER=s.MAIL_SERVER,
         MAIL_STARTTLS=s.MAIL_STARTTLS,
@@ -72,13 +72,13 @@ async def enviar_notificacoes_pendentes(
             continue
         msg = MessageSchema(
             subject=f"PGD Libre: {n.tipo_evento.value.replace('_', ' ').title()}",
-            recipients=[email],
+            recipients=[email],  # type: ignore[list-item]
             body=n.conteudo,
             subtype=MessageType.plain,
         )
         await mail.send_message(msg)
         n.enviada = True
-        n.enviada_em = datetime.now(timezone.utc)
+        n.enviada_em = datetime.now(UTC)
         count += 1
 
     await db.commit()

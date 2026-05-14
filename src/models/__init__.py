@@ -10,6 +10,7 @@ from .institucional import (
 )
 from .notificacao import Notificacao, TipoEvento
 from .participante import (
+    TCR,
     Convocacao,
     CriteriosPrioridade,
     MotivoDesligamento,
@@ -18,7 +19,6 @@ from .participante import (
     RegimeExecucao,
     StatusConvocacao,
     StatusTCR,
-    TCR,
     TermoGuardaEquipamento,
     TipoVinculo,
 )

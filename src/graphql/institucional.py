@@ -1,13 +1,9 @@
 """Tipos Strawberry e helpers de resolvers para o módulo Institucional (Sprint 1.1)."""
+
 import enum
-import uuid
 from datetime import date, datetime
-from typing import Optional
 
 import strawberry
-
-from ..models.institucional import Competencia, OrigemUnidade, StatusAto, StatusPgd
-
 
 # ---------------------------------------------------------------------------
 # Enums GraphQL
@@ -78,7 +74,7 @@ class UnidadeInstituidoraType:
     status: StatusPgdGql
     conteudo_minimo_tcr: str
     prazo_antecedencia_convocacao_dias: int
-    nivel_produtividade_adicional_tt: Optional[str]
+    nivel_produtividade_adicional_tt: str | None
 
 
 @strawberry.type
@@ -86,7 +82,7 @@ class ResultadoPublicoType:
     cod_unidade_executora: int
     nome: str
     total_planos_avaliados: int
-    media_avaliacao: Optional[float]
+    media_avaliacao: float | None
 
 
 # ---------------------------------------------------------------------------
@@ -120,14 +116,14 @@ class CriarUnidadeInstituidoraInput:
     modalidades_autorizadas: list[int]
     conteudo_minimo_tcr: str
     prazo_antecedencia_convocacao_dias: int
-    vagas_percentual_presencial: Optional[int] = None
-    vagas_percentual_tt_parcial: Optional[int] = None
-    vagas_percentual_tt_integral: Optional[int] = None
-    vagas_percentual_tt_exterior: Optional[int] = None
-    nivel_produtividade_adicional_tt: Optional[str] = None
-    vedacoes_participacao: Optional[str] = None
-    criterios_selecao_adicionais: Optional[str] = None
-    procedimento_registro_comparecimento: Optional[str] = None
+    vagas_percentual_presencial: int | None = None
+    vagas_percentual_tt_parcial: int | None = None
+    vagas_percentual_tt_integral: int | None = None
+    vagas_percentual_tt_exterior: int | None = None
+    nivel_produtividade_adicional_tt: str | None = None
+    vedacoes_participacao: str | None = None
+    criterios_selecao_adicionais: str | None = None
+    procedimento_registro_comparecimento: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -184,10 +180,10 @@ class DelegacaoCompetenciaType:
     delegante_user_id: int
     delegatario_user_id: int
     competencia: CompetenciaGql
-    unidade_execucao_id: Optional[strawberry.ID]
+    unidade_execucao_id: strawberry.ID | None
     data_inicio: date
-    data_fim: Optional[date]
-    motivo: Optional[str]
+    data_fim: date | None
+    motivo: str | None
     ativo: bool
     created_at: datetime
 
@@ -197,9 +193,9 @@ class DelegarCompetenciaInput:
     delegatario_user_id: int
     competencia: CompetenciaGql
     data_inicio: date
-    data_fim: Optional[date] = None
-    unidade_execucao_id: Optional[strawberry.ID] = None
-    motivo: Optional[str] = None
+    data_fim: date | None = None
+    unidade_execucao_id: strawberry.ID | None = None
+    motivo: str | None = None
 
 
 def _delegacao_to_type(d) -> DelegacaoCompetenciaType:  # type: ignore[no-untyped-def]
@@ -209,9 +205,7 @@ def _delegacao_to_type(d) -> DelegacaoCompetenciaType:  # type: ignore[no-untype
         delegatario_user_id=d.delegatario_user_id,
         competencia=CompetenciaGql(d.competencia.value),
         unidade_execucao_id=(
-            strawberry.ID(str(d.unidade_execucao_id))
-            if d.unidade_execucao_id
-            else None
+            strawberry.ID(str(d.unidade_execucao_id)) if d.unidade_execucao_id else None
         ),
         data_inicio=d.data_inicio,
         data_fim=d.data_fim,

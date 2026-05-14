@@ -1,4 +1,5 @@
 """Sprint 1.6 — Endpoint público de resultados consolidados (RF-004)."""
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -6,8 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.audit import AuditAction
+from ..models.institucional import OrigemUnidade
 from ..models.notificacao import TipoEvento
-from ..models.participante import Participante, StatusTCR, TCR
+from ..models.participante import TCR, Participante, StatusTCR
 from ..models.plano import (
     STATUS_PT_APROVADO,
     STATUS_PT_CANCELADO,
@@ -18,7 +19,6 @@ from ..models.plano import (
     PlanoEntregas,
     PlanoTrabalho,
 )
-from ..models.institucional import OrigemUnidade
 from ..models.user import User
 from .audit import log_audit
 from .institucional import ValidationError
@@ -34,9 +34,7 @@ MIN_DATA_INICIO_PT = date(2023, 7, 31)
 
 def validate_duracao_maxima_pt(data_inicio: date, data_termino: date) -> None:
     if data_termino > data_inicio + relativedelta(years=1):
-        raise ValidationError(
-            "Plano de Trabalho não pode ter duração superior a 1 ano"
-        )
+        raise ValidationError("Plano de Trabalho não pode ter duração superior a 1 ano")
     if data_termino < data_inicio:
         raise ValidationError("data_termino deve ser >= data_inicio")
 
@@ -48,9 +46,7 @@ def validate_tipo_contribuicao(
 ) -> None:
     if tipo == 1:
         if not id_plano_entregas or not id_entrega:
-            raise ValidationError(
-                "Contribuição tipo 1 exige id_plano_entregas e id_entrega"
-            )
+            raise ValidationError("Contribuição tipo 1 exige id_plano_entregas e id_entrega")
     elif tipo == 2:
         if id_plano_entregas or id_entrega:
             raise ValidationError(
@@ -117,9 +113,7 @@ async def validate_data_inicio_pt_ge_pe(
 ) -> None:
     if plano_entregas_id is None:
         return
-    result = await db.execute(
-        select(PlanoEntregas).where(PlanoEntregas.id == plano_entregas_id)
-    )
+    result = await db.execute(select(PlanoEntregas).where(PlanoEntregas.id == plano_entregas_id))
     pe = result.scalar_one_or_none()
     if pe and data_inicio_pt < pe.data_inicio:
         raise ValidationError(
@@ -145,9 +139,7 @@ async def validate_sem_sobreposicao_pt(
         q = q.where(PlanoTrabalho.id != exclude_id)
     result = await db.execute(q)
     if result.scalar_one_or_none() is not None:
-        raise ValidationError(
-            "Participante já possui Plano de Trabalho no período informado"
-        )
+        raise ValidationError("Participante já possui Plano de Trabalho no período informado")
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +222,10 @@ async def criar_plano_trabalho(
         record_id=str(pt.id),
         action=AuditAction.CREATE,
         user=user,
-        new_values={"id_plano_trabalho": id_plano_trabalho, "status": STATUS_PT_APROVADO},
+        new_values={
+            "id_plano_trabalho": id_plano_trabalho,
+            "status": STATUS_PT_APROVADO,
+        },
         ip_address=ip_address,
     )
     await criar_notificacao(
@@ -245,12 +240,8 @@ async def criar_plano_trabalho(
     return pt
 
 
-async def get_plano_trabalho(
-    db: AsyncSession, pt_id: uuid.UUID
-) -> PlanoTrabalho | None:
-    result = await db.execute(
-        select(PlanoTrabalho).where(PlanoTrabalho.id == pt_id)
-    )
+async def get_plano_trabalho(db: AsyncSession, pt_id: uuid.UUID) -> PlanoTrabalho | None:
+    result = await db.execute(select(PlanoTrabalho).where(PlanoTrabalho.id == pt_id))
     return result.scalar_one_or_none()
 
 

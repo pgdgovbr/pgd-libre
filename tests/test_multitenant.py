@@ -3,21 +3,27 @@
 Regra: ADMIN vê todos os dados; qualquer outro role vê apenas os registros
 onde cod_unidade_autorizadora == user.cod_unidade_autorizadora.
 """
+
 from datetime import date
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.institucional import OrigemUnidade, UnidadeAutorizadora, UnidadeInstituidora, UnidadeExecucao
+from src.models.institucional import (
+    OrigemUnidade,
+    UnidadeAutorizadora,
+    UnidadeExecucao,
+    UnidadeInstituidora,
+)
 from src.models.participante import Participante, TipoVinculo
-from src.models.plano import PlanoEntregas, PlanoTrabalho
+from src.models.plano import PlanoEntregas
 from src.models.user import UserRole
 from tests.conftest import persist_user, set_auth_cookie
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 async def _make_ua(db: AsyncSession, cod: int) -> UnidadeAutorizadora:
     ua = UnidadeAutorizadora(
@@ -57,7 +63,9 @@ async def _make_ue(db: AsyncSession, ua: UnidadeAutorizadora) -> UnidadeExecucao
     return ue
 
 
-async def _make_participante(db: AsyncSession, ue: UnidadeExecucao, ua: UnidadeAutorizadora, matricula: str) -> Participante:
+async def _make_participante(
+    db: AsyncSession, ue: UnidadeExecucao, ua: UnidadeAutorizadora, matricula: str
+) -> Participante:
     p = Participante(
         origem_unidade=OrigemUnidade.SIAPE,
         cod_unidade_autorizadora=ua.cod_unidade_autorizadora,
@@ -77,7 +85,9 @@ async def _make_participante(db: AsyncSession, ue: UnidadeExecucao, ua: UnidadeA
     return p
 
 
-async def _make_pe(db: AsyncSession, ue: UnidadeExecucao, ua: UnidadeAutorizadora, id_pe: str) -> PlanoEntregas:
+async def _make_pe(
+    db: AsyncSession, ue: UnidadeExecucao, ua: UnidadeAutorizadora, id_pe: str
+) -> PlanoEntregas:
     pe = PlanoEntregas(
         id_plano_entregas=id_pe,
         origem_unidade=OrigemUnidade.SIAPE,
@@ -101,9 +111,8 @@ def _gql(query: str) -> dict:
 # TC-MT-001  listar_participantes — gestor vê só sua unidade
 # ---------------------------------------------------------------------------
 
-async def test_gestor_lista_apenas_propria_unidade(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+
+async def test_gestor_lista_apenas_propria_unidade(db: AsyncSession, client: AsyncClient) -> None:
     ua_a = await _make_ua(db, 100)
     ua_b = await _make_ua(db, 200)
     ue_a = await _make_ue(db, ua_a)
@@ -112,7 +121,12 @@ async def test_gestor_lista_apenas_propria_unidade(
     await _make_participante(db, ue_b, ua_b, "7654321")
     await db.commit()
 
-    gestor = await persist_user(db, email="g@test.gov.br", role=UserRole.GESTOR_UNIDADE, cod_unidade_autorizadora=100)
+    gestor = await persist_user(
+        db,
+        email="g@test.gov.br",
+        role=UserRole.GESTOR_UNIDADE,
+        cod_unidade_autorizadora=100,
+    )
     set_auth_cookie(client, gestor)
 
     resp = await client.post(
@@ -130,6 +144,7 @@ async def test_gestor_lista_apenas_propria_unidade(
 # ---------------------------------------------------------------------------
 # TC-MT-002  listar_participantes — admin vê todas as unidades
 # ---------------------------------------------------------------------------
+
 
 async def test_admin_lista_participantes_de_todas_unidades(
     db: AsyncSession, client: AsyncClient
@@ -160,6 +175,7 @@ async def test_admin_lista_participantes_de_todas_unidades(
 # TC-MT-003  participante(id) — gestor não acessa outra unidade
 # ---------------------------------------------------------------------------
 
+
 async def test_gestor_nao_acessa_participante_de_outra_unidade(
     db: AsyncSession, client: AsyncClient
 ) -> None:
@@ -168,7 +184,12 @@ async def test_gestor_nao_acessa_participante_de_outra_unidade(
     p = await _make_participante(db, ue_b, ua_b, "3333333")
     await db.commit()
 
-    gestor = await persist_user(db, email="g2@test.gov.br", role=UserRole.GESTOR_UNIDADE, cod_unidade_autorizadora=102)
+    gestor = await persist_user(
+        db,
+        email="g2@test.gov.br",
+        role=UserRole.GESTOR_UNIDADE,
+        cod_unidade_autorizadora=102,
+    )
     set_auth_cookie(client, gestor)
 
     resp = await client.post(
@@ -184,6 +205,7 @@ async def test_gestor_nao_acessa_participante_de_outra_unidade(
 # TC-MT-004  participante(id) — gestor acessa sua própria unidade
 # ---------------------------------------------------------------------------
 
+
 async def test_gestor_acessa_participante_da_propria_unidade(
     db: AsyncSession, client: AsyncClient
 ) -> None:
@@ -192,7 +214,12 @@ async def test_gestor_acessa_participante_da_propria_unidade(
     p = await _make_participante(db, ue, ua, "4444444")
     await db.commit()
 
-    gestor = await persist_user(db, email="g3@test.gov.br", role=UserRole.GESTOR_UNIDADE, cod_unidade_autorizadora=103)
+    gestor = await persist_user(
+        db,
+        email="g3@test.gov.br",
+        role=UserRole.GESTOR_UNIDADE,
+        cod_unidade_autorizadora=103,
+    )
     set_auth_cookie(client, gestor)
 
     resp = await client.post(
@@ -211,6 +238,7 @@ async def test_gestor_acessa_participante_da_propria_unidade(
 # TC-MT-005  listar_planos_entregas — gestor vê só sua unidade
 # ---------------------------------------------------------------------------
 
+
 async def test_gestor_lista_apenas_planos_entregas_propria_unidade(
     db: AsyncSession, client: AsyncClient
 ) -> None:
@@ -222,7 +250,12 @@ async def test_gestor_lista_apenas_planos_entregas_propria_unidade(
     await _make_pe(db, ue_b, ua_b, "PE-B-001")
     await db.commit()
 
-    gestor = await persist_user(db, email="g4@test.gov.br", role=UserRole.GESTOR_UNIDADE, cod_unidade_autorizadora=104)
+    gestor = await persist_user(
+        db,
+        email="g4@test.gov.br",
+        role=UserRole.GESTOR_UNIDADE,
+        cod_unidade_autorizadora=104,
+    )
     set_auth_cookie(client, gestor)
 
     resp = await client.post(
@@ -240,6 +273,7 @@ async def test_gestor_lista_apenas_planos_entregas_propria_unidade(
 # ---------------------------------------------------------------------------
 # TC-MT-006  listar_planos_entregas — admin vê todas unidades
 # ---------------------------------------------------------------------------
+
 
 async def test_admin_lista_planos_entregas_todas_unidades(
     db: AsyncSession, client: AsyncClient
@@ -270,6 +304,7 @@ async def test_admin_lista_planos_entregas_todas_unidades(
 # TC-MT-007  chefe_imediato também fica limitado à sua unidade
 # ---------------------------------------------------------------------------
 
+
 async def test_chefe_imediato_limitado_propria_unidade(
     db: AsyncSession, client: AsyncClient
 ) -> None:
@@ -281,7 +316,12 @@ async def test_chefe_imediato_limitado_propria_unidade(
     await _make_participante(db, ue_b, ua_b, "6666666")
     await db.commit()
 
-    chefe = await persist_user(db, email="c@test.gov.br", role=UserRole.CHEFE_IMEDIATO, cod_unidade_autorizadora=106)
+    chefe = await persist_user(
+        db,
+        email="c@test.gov.br",
+        role=UserRole.CHEFE_IMEDIATO,
+        cod_unidade_autorizadora=106,
+    )
     set_auth_cookie(client, chefe)
 
     resp = await client.post(

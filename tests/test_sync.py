@@ -5,19 +5,18 @@ Ordem TDD:
 2. A implementação deve fazer todos passarem sem modificar os testes.
 """
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.institucional import OrigemUnidade
 from src.models.participante import (
+    TCR,
     Participante,
     RegimeExecucao,
     StatusTCR,
-    TCR,
     TipoVinculo,
 )
 from src.models.plano import (
@@ -37,7 +36,6 @@ from src.services.institucional import (
 )
 
 from .conftest import persist_user
-
 
 # ---------------------------------------------------------------------------
 # Helpers de setup
@@ -250,7 +248,7 @@ async def test_participante_ja_sincronizado_nao_reenviado(db: AsyncSession):
     admin = await persist_user(db, email="admin@sync2.com", role=UserRole.ADMIN)
     ue = await _make_ue(db, admin)
     p = await _make_participante(db, ue)
-    p.api_sincronizado_em = datetime.now(timezone.utc)
+    p.api_sincronizado_em = datetime.now(UTC)
     await db.commit()
 
     mock = _mock_client()
@@ -371,7 +369,7 @@ async def test_erro_nao_impede_api_sincronizado_em_dos_outros(db: AsyncSession):
 
     await db.refresh(p)
     await db.refresh(pe)
-    assert p.api_sincronizado_em is None   # falhou — não deve ser marcado
+    assert p.api_sincronizado_em is None  # falhou — não deve ser marcado
     assert pe.api_sincronizado_em is not None  # sucesso — deve estar marcado
 
 
@@ -410,14 +408,16 @@ async def test_endpoint_com_secret_correto_e_api_pgd_executa_sync(
     db: AsyncSession,
 ):
     """Com API_PGD_URL configurada, o sync é executado e retorna relatório."""
-    from unittest.mock import patch, AsyncMock as AM
+    from unittest.mock import AsyncMock as AM
+    from unittest.mock import patch
 
     fake_result = {"sucesso": 2, "erros": []}
 
-    with patch("src.api.sync.get_settings") as mock_settings, \
-         patch("src.api.sync.sincronizar_tudo", new=AM(return_value=fake_result)) as mock_sync, \
-         patch("src.api.sync.ApiPgdClient") as mock_cls:
-
+    with (
+        patch("src.api.sync.get_settings") as mock_settings,
+        patch("src.api.sync.sincronizar_tudo", new=AM(return_value=fake_result)),
+        patch("src.api.sync.ApiPgdClient") as mock_cls,
+    ):
         settings = MagicMock()
         settings.SYNC_SECRET = "dev-sync-secret"
         settings.API_PGD_URL = "http://fake-api:5057"

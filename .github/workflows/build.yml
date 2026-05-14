@@ -1,0 +1,51 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write   # OIDC para Workload Identity Federation
+
+jobs:
+  build-and-deploy:
+    # NOTE: este workflow só pode rodar depois que o repo ../infra/ provisionar:
+    #   - Workload Identity Pool/Provider para o repo destaquesgovbr/pgd-libre
+    #   - Service Account pgd-libre-deploy@inspire-7-finep.iam.gserviceaccount.com
+    #   - Artifact Registry southamerica-east1-docker.pkg.dev/inspire-7-finep/pgd-libre/
+    #   - Cloud Run service pgd-libre
+    # Os secrets GCP_WORKLOAD_IDENTITY_PROVIDER e GCP_SERVICE_ACCOUNT precisam
+    # estar configurados no repo. Remover o `if: false` quando esses pré-requisitos
+    # estiverem atendidos.
+    if: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker southamerica-east1-docker.pkg.dev
+
+      - name: Build & push image
+        run: |
+          IMAGE=southamerica-east1-docker.pkg.dev/inspire-7-finep/pgd-libre/app:${{ github.sha }}
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy Cloud Run
+        run: |
+          gcloud run deploy pgd-libre \
+            --image="$IMAGE" \
+            --region=southamerica-east1 \
+            --project=inspire-7-finep
+        # Env vars do Cloud Run são geridas pelo Terraform (repo infra/);
+        # este step só atualiza a imagem.

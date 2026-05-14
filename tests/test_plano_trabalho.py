@@ -1,8 +1,9 @@
 """Sprint 1.4 — Plano de Trabalho: service tests (TC-M04)."""
-import uuid
+
 from datetime import date
 
 import pytest
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.institucional import OrigemUnidade
@@ -11,7 +12,6 @@ from src.models.plano import (
     STATUS_PT_APROVADO,
     STATUS_PT_CANCELADO,
     STATUS_PT_EM_EXECUCAO,
-    TipoMeta,
 )
 from src.models.user import UserRole
 from src.services.institucional import (
@@ -36,10 +36,7 @@ from src.services.plano_trabalho import (
     validate_tipo_contribuicao,
 )
 
-from httpx import AsyncClient
-
 from .conftest import persist_user, set_auth_cookie
-
 
 # ---------------------------------------------------------------------------
 # Pure validators
@@ -160,7 +157,17 @@ async def _setup_full(db, admin):
     return ua, ui, ue, p
 
 
-async def _criar_pt(db, admin, ua, ue, p, cod="PT-001", data_inicio=date(2024, 3, 1), data_termino=date(2024, 12, 31), plano_entregas_id=None):
+async def _criar_pt(
+    db,
+    admin,
+    ua,
+    ue,
+    p,
+    cod="PT-001",
+    data_inicio=date(2024, 3, 1),
+    data_termino=date(2024, 12, 31),
+    plano_entregas_id=None,
+):
     return await criar_plano_trabalho(
         db,
         id_plano_trabalho=cod,
@@ -491,7 +498,16 @@ async def test_gql_iniciar_cancelar_plano_trabalho(client: AsyncClient, db: Asyn
     assert r1.json()["data"]["iniciarExecucaoPlanoTrabalho"]["status"] == 3  # STATUS_PT_EM_EXECUCAO
 
     # create a separate PT to cancel (can't cancel one in execucao without specific service)
-    pt2 = await _criar_pt(db, admin, ua, ue, p, cod="PT-CAN-GQL", data_inicio=date(2025, 1, 1), data_termino=date(2025, 12, 31))
+    pt2 = await _criar_pt(
+        db,
+        admin,
+        ua,
+        ue,
+        p,
+        cod="PT-CAN-GQL",
+        data_inicio=date(2025, 1, 1),
+        data_termino=date(2025, 12, 31),
+    )
     cancel_q = f"""
     mutation {{ cancelarPlanoTrabalho(planoId: "{pt2.id}") {{ id status }} }}
     """

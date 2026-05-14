@@ -39,9 +39,7 @@ async def get_optional_user(
     try:
         payload = decode_access_token(token)
         user_id = int(payload["sub"])
-        result = await db.execute(
-            select(User).where(User.id == user_id, User.is_active.is_(True))
-        )
+        result = await db.execute(select(User).where(User.id == user_id, User.is_active.is_(True)))
         return result.scalar_one_or_none()
     except (PyJWTError, ValueError, KeyError):
         return None

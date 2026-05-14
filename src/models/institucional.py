@@ -3,6 +3,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     Date,
@@ -10,7 +11,6 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
-    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -55,9 +55,7 @@ class UnidadeAutorizadora(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     origem_unidade: Mapped[OrigemUnidade] = mapped_column(
         Enum(OrigemUnidade, name="origemunidade"), default=OrigemUnidade.SIAPE
     )
@@ -65,9 +63,7 @@ class UnidadeAutorizadora(Base):
     nome: Mapped[str] = mapped_column(String(255))
     sigla: Mapped[str] = mapped_column(String(20))
     pgd_autorizado: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -83,9 +79,7 @@ class UnidadeAutorizadora(Base):
 class AtoAutorizacao(Base):
     __tablename__ = "atos_autorizacao"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     unidade_autorizadora_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("unidades_autorizadoras.id", ondelete="CASCADE")
     )
@@ -95,9 +89,7 @@ class AtoAutorizacao(Base):
     status: Mapped[StatusAto] = mapped_column(
         Enum(StatusAto, name="statusato"), default=StatusAto.ATIVO
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -110,9 +102,7 @@ class AtoAutorizacao(Base):
 class UnidadeInstituidora(Base):
     __tablename__ = "unidades_instituidoras"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     unidade_autorizadora_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("unidades_autorizadoras.id", ondelete="CASCADE")
     )
@@ -123,43 +113,23 @@ class UnidadeInstituidora(Base):
     data_instituicao: Mapped[date] = mapped_column(Date)
     tipos_atividades: Mapped[str] = mapped_column(Text)
     modalidades_autorizadas: Mapped[list] = mapped_column(JSON, default=list)
-    vagas_percentual_presencial: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
-    vagas_percentual_tt_parcial: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
-    vagas_percentual_tt_integral: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
-    vagas_percentual_tt_exterior: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
+    vagas_percentual_presencial: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    vagas_percentual_tt_parcial: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    vagas_percentual_tt_integral: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    vagas_percentual_tt_exterior: Mapped[int | None] = mapped_column(Integer, nullable=True)
     conteudo_minimo_tcr: Mapped[str] = mapped_column(Text)
     prazo_antecedencia_convocacao_dias: Mapped[int] = mapped_column(Integer)
-    nivel_produtividade_adicional_tt: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )
+    nivel_produtividade_adicional_tt: Mapped[str | None] = mapped_column(Text, nullable=True)
     vedacoes_participacao: Mapped[str | None] = mapped_column(Text, nullable=True)
-    criterios_selecao_adicionais: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )
-    escala_customizada_mapeamento: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True
-    )
-    procedimento_registro_comparecimento: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )
+    criterios_selecao_adicionais: Mapped[str | None] = mapped_column(Text, nullable=True)
+    escala_customizada_mapeamento: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    procedimento_registro_comparecimento: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[StatusPgd] = mapped_column(
         Enum(StatusPgd, name="statuspgd"), default=StatusPgd.EM_VIGOR
     )
     data_suspensao_revogacao: Mapped[date | None] = mapped_column(Date, nullable=True)
-    motivo_suspensao_revogacao: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    motivo_suspensao_revogacao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -175,25 +145,19 @@ class UnidadeInstituidora(Base):
 class UnidadeExecucao(Base):
     __tablename__ = "unidades_execucao"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     unidade_instituidora_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("unidades_instituidoras.id", ondelete="CASCADE")
     )
     cod_unidade_executora: Mapped[int] = mapped_column(BigInteger)
     nome: Mapped[str] = mapped_column(String(255))
     sigla: Mapped[str] = mapped_column(String(20))
-    chefia_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id"), nullable=True
-    )
+    chefia_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     nivel_superior_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
     )
     coincide_com_instituidora: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -206,14 +170,10 @@ class UnidadeExecucao(Base):
 class DelegacaoCompetencia(Base):
     __tablename__ = "delegacoes_competencia"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     delegante_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     delegatario_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    competencia: Mapped[Competencia] = mapped_column(
-        Enum(Competencia, name="competencia")
-    )
+    competencia: Mapped[Competencia] = mapped_column(Enum(Competencia, name="competencia"))
     unidade_execucao_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("unidades_execucao.id", ondelete="CASCADE"),
@@ -223,6 +183,4 @@ class DelegacaoCompetencia(Base):
     data_fim: Mapped[date | None] = mapped_column(Date, nullable=True)
     motivo: Mapped[str | None] = mapped_column(Text, nullable=True)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

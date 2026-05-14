@@ -1,4 +1,5 @@
 """RF-006 — Seleção de Participantes com Critérios de Prioridade (TC-M02-012 a TC-M02-014)."""
+
 import uuid
 
 import pytest
@@ -23,7 +24,6 @@ from src.services.participante import (
 
 from .conftest import persist_user
 
-
 # ---------------------------------------------------------------------------
 # TC-M02-012 — Ordenação por prioridade legal [U]
 # ---------------------------------------------------------------------------
@@ -32,9 +32,19 @@ from .conftest import persist_user
 def test_ordenar_candidatos_por_prioridade_legal():
     """TC-M02-012 — PcD > Resp.PcD > Mob.Reduzida > HorEspecial > SemPrioridade."""
     candidatos = [
-        CandidatoSelecao(id="E", nome="Sem Prioridade", criterio=CriteriosPrioridade.SEM_PRIORIDADE),
-        CandidatoSelecao(id="D", nome="Horário Especial", criterio=CriteriosPrioridade.HORARIO_ESPECIAL),
-        CandidatoSelecao(id="C", nome="Mobilidade Reduzida", criterio=CriteriosPrioridade.MOBILIDADE_REDUZIDA),
+        CandidatoSelecao(
+            id="E", nome="Sem Prioridade", criterio=CriteriosPrioridade.SEM_PRIORIDADE
+        ),
+        CandidatoSelecao(
+            id="D",
+            nome="Horário Especial",
+            criterio=CriteriosPrioridade.HORARIO_ESPECIAL,
+        ),
+        CandidatoSelecao(
+            id="C",
+            nome="Mobilidade Reduzida",
+            criterio=CriteriosPrioridade.MOBILIDADE_REDUZIDA,
+        ),
         CandidatoSelecao(id="B", nome="Responsável PcD", criterio=CriteriosPrioridade.RESP_PCD),
         CandidatoSelecao(id="A", nome="PcD", criterio=CriteriosPrioridade.PCD),
     ]
@@ -133,10 +143,10 @@ async def test_selecao_registrada_no_log_auditoria(db: AsyncSession):
     assert resultado_ids == ["X1"]
 
     logs = (
-        await db.execute(
-            select(AuditLog).where(AuditLog.table_name == "processos_selecao")
-        )
-    ).scalars().all()
+        (await db.execute(select(AuditLog).where(AuditLog.table_name == "processos_selecao")))
+        .scalars()
+        .all()
+    )
     assert len(logs) >= 1
     assert logs[0].user_id == admin.id
 

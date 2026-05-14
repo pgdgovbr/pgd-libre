@@ -5,14 +5,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.audit import AuditAction
-from ..models.participante import Participante
-from ..models.plano import AvaliacaoRegistrosExecucao, DecisaoRecurso, PlanoTrabalho, StatusRecurso
 from ..models.notificacao import TipoEvento
+from ..models.participante import Participante
+from ..models.plano import (
+    AvaliacaoRegistrosExecucao,
+    DecisaoRecurso,
+    PlanoTrabalho,
+    StatusRecurso,
+)
 from ..models.user import User
 from .audit import log_audit
 from .institucional import ValidationError
 from .notificacao import criar_notificacao
-
 
 # ---------------------------------------------------------------------------
 # Pure validators
@@ -32,15 +36,11 @@ def validate_escala_customizada(mapeamento: dict) -> None:
 def mapear_avaliacao_customizada(valor_customizado: str, mapeamento: dict) -> int:
     """Converte valor customizado para escala padrão 1–5."""
     if valor_customizado not in mapeamento:
-        raise ValidationError(
-            f"Valor '{valor_customizado}' não encontrado na escala customizada"
-        )
+        raise ValidationError(f"Valor '{valor_customizado}' não encontrado na escala customizada")
     return mapeamento[valor_customizado]
 
 
-def validate_justificativa_obrigatoria(
-    avaliacao: int, justificativa: str | None
-) -> None:
+def validate_justificativa_obrigatoria(avaliacao: int, justificativa: str | None) -> None:
     if avaliacao in (1, 4, 5):
         if not justificativa or not justificativa.strip():
             raise ValidationError(
@@ -65,13 +65,9 @@ async def _get_email_participante_por_pt(
     return r.scalar_one_or_none()
 
 
-async def _get_avaliacao(
-    db: AsyncSession, avaliacao_id: uuid.UUID
-) -> AvaliacaoRegistrosExecucao:
+async def _get_avaliacao(db: AsyncSession, avaliacao_id: uuid.UUID) -> AvaliacaoRegistrosExecucao:
     result = await db.execute(
-        select(AvaliacaoRegistrosExecucao).where(
-            AvaliacaoRegistrosExecucao.id == avaliacao_id
-        )
+        select(AvaliacaoRegistrosExecucao).where(AvaliacaoRegistrosExecucao.id == avaliacao_id)
     )
     a = result.scalar_one_or_none()
     if a is None:

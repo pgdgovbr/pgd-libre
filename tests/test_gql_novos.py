@@ -1,5 +1,5 @@
 """Sprint 2.4 — Testes GraphQL para mutations e queries novas (TC-M04-*, TC-M07-*)."""
-import uuid
+
 from datetime import date
 
 from httpx import AsyncClient
@@ -14,7 +14,11 @@ from src.services.institucional import (
     criar_unidade_autorizadora,
     criar_unidade_instituidora,
 )
-from src.services.participante import assinar_tcr_chefia, cadastrar_participante, pactu_tcr
+from src.services.participante import (
+    assinar_tcr_chefia,
+    cadastrar_participante,
+    pactu_tcr,
+)
 from src.services.plano_entregas import criar_entrega, criar_plano_entregas
 from src.services.plano_trabalho import adicionar_contribuicao, criar_plano_trabalho
 from tests.conftest import persist_user, set_auth_cookie
@@ -211,9 +215,7 @@ async def test_gql_aprovar_plano_entregas(db: AsyncSession, client: AsyncClient)
     assert result["dataAprovacao"] is not None
 
 
-async def test_gql_aprovar_instituidora_rejeitado(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_gql_aprovar_instituidora_rejeitado(db: AsyncSession, client: AsyncClient) -> None:
     """Plano de unidade que coincide com instituidora não pode ser aprovado hierarquicamente."""
     admin = await persist_user(db, email="gql_aprx@test.gov.br", role=UserRole.ADMIN)
     aprovador = await persist_user(db, email="gql_aprx2@test.gov.br", role=UserRole.GESTOR_UNIDADE)
@@ -344,12 +346,12 @@ async def test_gql_registrar_autorizacao_equipamentos(
 # ---------------------------------------------------------------------------
 
 
-async def test_gql_relatorio_sem_plano_trabalho(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_gql_relatorio_sem_plano_trabalho(db: AsyncSession, client: AsyncClient) -> None:
     """Query relatorioSemPlanoTrabalho retorna participante ativo sem PT."""
     admin = await persist_user(
-        db, email="gql_rel@test.gov.br", role=UserRole.GESTOR_UNIDADE,
+        db,
+        email="gql_rel@test.gov.br",
+        role=UserRole.GESTOR_UNIDADE,
         cod_unidade_autorizadora=220005,
     )
     set_auth_cookie(client, admin)
@@ -382,16 +384,14 @@ async def test_gql_relatorio_sem_plano_trabalho(
 # ---------------------------------------------------------------------------
 
 
-async def test_gql_rotulo_contribuicao_em_query(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_gql_rotulo_contribuicao_em_query(db: AsyncSession, client: AsyncClient) -> None:
     """Query planoTrabalho { contribuicoes { rotulo } } retorna rótulo correto."""
     admin = await persist_user(db, email="gql_rot@test.gov.br", role=UserRole.ADMIN)
     set_auth_cookie(client, admin)
     ua, ui, ue = await _setup_base(db, admin, cod_ua=220006)
 
     p = await _make_participante(db, admin, ue, ua, ui, matricula="2200060", modalidade=1)
-    tcr = await _make_tcr(db, admin, p, modalidade=1)
+    await _make_tcr(db, admin, p, modalidade=1)
 
     pe = await criar_plano_entregas(
         db,

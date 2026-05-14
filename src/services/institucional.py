@@ -82,9 +82,7 @@ async def criar_unidade_autorizadora(
 async def get_unidade_autorizadora(
     db: AsyncSession, ua_id: uuid.UUID
 ) -> UnidadeAutorizadora | None:
-    result = await db.execute(
-        select(UnidadeAutorizadora).where(UnidadeAutorizadora.id == ua_id)
-    )
+    result = await db.execute(select(UnidadeAutorizadora).where(UnidadeAutorizadora.id == ua_id))
     return result.scalar_one_or_none()
 
 
@@ -147,9 +145,7 @@ async def atualizar_status_ato(
     user: User,
     ip_address: str | None = None,
 ) -> AtoAutorizacao:
-    result = await db.execute(
-        select(AtoAutorizacao).where(AtoAutorizacao.id == ato_id)
-    )
+    result = await db.execute(select(AtoAutorizacao).where(AtoAutorizacao.id == ato_id))
     ato = result.scalar_one_or_none()
     if ato is None:
         raise ValidationError("AtoAutorizacao não encontrado")
@@ -205,7 +201,7 @@ async def criar_unidade_instituidora(
     ato_instituicao_ref: str,
     data_instituicao: date,
     tipos_atividades: str,
-    modalidades_autorizadas: list[int] = None,
+    modalidades_autorizadas: list[int] | None = None,
     conteudo_minimo_tcr: str,
     prazo_antecedencia_convocacao_dias: int,
     vagas_percentual_presencial: int | None = None,
@@ -273,9 +269,7 @@ async def suspender_pgd(
     validate_motivo_suspensao_required(motivo)
 
     result = await db.execute(
-        select(UnidadeInstituidora).where(
-            UnidadeInstituidora.id == unidade_instituidora_id
-        )
+        select(UnidadeInstituidora).where(UnidadeInstituidora.id == unidade_instituidora_id)
     )
     ui = result.scalar_one_or_none()
     if ui is None:
@@ -302,13 +296,14 @@ async def suspender_pgd(
     # Cancel active PlanoTrabalho for this instituidora (TC-M01-011)
     try:
         from sqlalchemy import select as _sel
+
+        from ..models.institucional import UnidadeExecucao
         from ..models.plano import (  # noqa: F401
-            PlanoTrabalho,
-            STATUS_PT_EM_EXECUCAO,
             STATUS_PT_APROVADO,
             STATUS_PT_CANCELADO,
+            STATUS_PT_EM_EXECUCAO,
+            PlanoTrabalho,
         )
-        from ..models.institucional import UnidadeExecucao
 
         unidades_result = await db.execute(
             _sel(UnidadeExecucao.id).where(
@@ -319,12 +314,9 @@ async def suspender_pgd(
 
         if ue_ids:
             from ..models.participante import Participante
-            from sqlalchemy import or_
 
             participantes_result = await db.execute(
-                _sel(Participante.id).where(
-                    Participante.unidade_execucao_id.in_(ue_ids)
-                )
+                _sel(Participante.id).where(Participante.unidade_execucao_id.in_(ue_ids))
             )
             p_ids = [row[0] for row in participantes_result]
 
@@ -332,9 +324,7 @@ async def suspender_pgd(
                 planos_result = await db.execute(
                     _sel(PlanoTrabalho).where(
                         PlanoTrabalho.participante_id.in_(p_ids),
-                        PlanoTrabalho.status.in_(
-                            [STATUS_PT_EM_EXECUCAO, STATUS_PT_APROVADO]
-                        ),
+                        PlanoTrabalho.status.in_([STATUS_PT_EM_EXECUCAO, STATUS_PT_APROVADO]),
                     )
                 )
                 for pt in planos_result.scalars():
@@ -363,7 +353,10 @@ async def suspender_pgd(
         db,
         tipo_evento=TipoEvento.PGD_SUSPENSO_REVOGADO,
         conteudo=f"O PGD da unidade instituidora foi suspenso. Motivo: {motivo}",
-        contexto={"unidade_instituidora_id": str(unidade_instituidora_id), "motivo": motivo},
+        contexto={
+            "unidade_instituidora_id": str(unidade_instituidora_id),
+            "motivo": motivo,
+        },
     )
     await db.commit()
     await db.refresh(ui)
@@ -373,9 +366,7 @@ async def suspender_pgd(
 async def get_unidade_instituidora(
     db: AsyncSession, ui_id: uuid.UUID
 ) -> UnidadeInstituidora | None:
-    result = await db.execute(
-        select(UnidadeInstituidora).where(UnidadeInstituidora.id == ui_id)
-    )
+    result = await db.execute(select(UnidadeInstituidora).where(UnidadeInstituidora.id == ui_id))
     return result.scalar_one_or_none()
 
 
@@ -387,22 +378,27 @@ async def get_unidade_instituidora(
 async def listar_resultados_publicos(
     db: AsyncSession,
 ) -> list[dict]:
-    from sqlalchemy import Integer, case, func
-    from ..models.plano import PlanoEntregas, STATUS_PE_AVALIADO
+    from sqlalchemy import case, func
+
+    from ..models.plano import STATUS_PE_AVALIADO, PlanoEntregas
 
     result = await db.execute(
         select(
             UnidadeExecucao.cod_unidade_executora,
             UnidadeExecucao.nome,
-            func.count(
-                case((PlanoEntregas.status == STATUS_PE_AVALIADO, PlanoEntregas.id))
-            ).label("total_planos_avaliados"),
-            func.avg(
-                case((PlanoEntregas.avaliacao.isnot(None), PlanoEntregas.avaliacao))
-            ).label("media_avaliacao"),
+            func.count(case((PlanoEntregas.status == STATUS_PE_AVALIADO, PlanoEntregas.id))).label(
+                "total_planos_avaliados"
+            ),
+            func.avg(case((PlanoEntregas.avaliacao.isnot(None), PlanoEntregas.avaliacao))).label(
+                "media_avaliacao"
+            ),
         )
         .outerjoin(PlanoEntregas, PlanoEntregas.unidade_execucao_id == UnidadeExecucao.id)
-        .group_by(UnidadeExecucao.id, UnidadeExecucao.cod_unidade_executora, UnidadeExecucao.nome)
+        .group_by(
+            UnidadeExecucao.id,
+            UnidadeExecucao.cod_unidade_executora,
+            UnidadeExecucao.nome,
+        )
     )
     rows = result.all()
     return [
@@ -435,9 +431,7 @@ async def delegar_competencia(
     ip_address: str | None = None,
 ) -> DelegacaoCompetencia:
     if data_fim is not None and data_fim < data_inicio:
-        raise ValidationError(
-            "Data fim da delegação não pode ser anterior à data de início"
-        )
+        raise ValidationError("Data fim da delegação não pode ser anterior à data de início")
     d = DelegacaoCompetencia(
         delegante_user_id=delegante_user_id,
         delegatario_user_id=delegatario_user_id,
@@ -460,9 +454,7 @@ async def delegar_competencia(
             "delegante_user_id": delegante_user_id,
             "delegatario_user_id": delegatario_user_id,
             "competencia": competencia.value,
-            "unidade_execucao_id": (
-                str(unidade_execucao_id) if unidade_execucao_id else None
-            ),
+            "unidade_execucao_id": (str(unidade_execucao_id) if unidade_execucao_id else None),
             "data_inicio": str(data_inicio),
             "data_fim": str(data_fim) if data_fim else None,
         },

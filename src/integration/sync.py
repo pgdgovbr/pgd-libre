@@ -1,7 +1,7 @@
 """Sincronização periódica com a API PGD Central."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,11 @@ from ..models.participante import Participante
 from ..models.plano import PlanoEntregas, PlanoTrabalho
 from ..models.sync_log import RegistroEnvioAPI, TipoEntidadeSync
 from .client import ApiPgdClient
-from .mapper import participante_to_payload, plano_entregas_to_payload, plano_trabalho_to_payload
+from .mapper import (
+    participante_to_payload,
+    plano_entregas_to_payload,
+    plano_trabalho_to_payload,
+)
 
 # Backoff delays in seconds: 1 min → 5 min → 30 min
 RETRY_DELAYS = [60, 300, 1800]
@@ -77,13 +81,13 @@ async def sincronizar_tudo(db: AsyncSession, client: ApiPgdClient) -> dict:
     """
     sucesso = 0
     erros: list[dict] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # --- Participantes ---
-    result = await db.execute(
+    result_p = await db.execute(
         select(Participante).where(Participante.api_sincronizado_em.is_(None))
     )
-    for p in result.scalars():
+    for p in result_p.scalars():
         ultimo = await _ultimo_registro(db, TipoEntidadeSync.PARTICIPANTE, p.id)
         if not _elegivel(ultimo, now):
             continue
@@ -99,18 +103,22 @@ async def sincronizar_tudo(db: AsyncSession, client: ApiPgdClient) -> dict:
             sucesso += 1
         except Exception as exc:
             await _registrar(
-                db, TipoEntidadeSync.PARTICIPANTE, p.id, tentativa,
-                sucesso=False, erro_mensagem=str(exc),
+                db,
+                TipoEntidadeSync.PARTICIPANTE,
+                p.id,
+                tentativa,
+                sucesso=False,
+                erro_mensagem=str(exc),
             )
             erros.append({"tipo": "participante", "id": str(p.id), "erro": str(exc)})
 
     # --- Planos de Entregas ---
-    result = await db.execute(
+    result_pe = await db.execute(
         select(PlanoEntregas)
         .options(selectinload(PlanoEntregas.entregas))
         .where(PlanoEntregas.api_sincronizado_em.is_(None))
     )
-    for pe in result.scalars():
+    for pe in result_pe.scalars():
         ultimo = await _ultimo_registro(db, TipoEntidadeSync.PLANO_ENTREGAS, pe.id)
         if not _elegivel(ultimo, now):
             continue
@@ -127,15 +135,17 @@ async def sincronizar_tudo(db: AsyncSession, client: ApiPgdClient) -> dict:
             sucesso += 1
         except Exception as exc:
             await _registrar(
-                db, TipoEntidadeSync.PLANO_ENTREGAS, pe.id, tentativa,
-                sucesso=False, erro_mensagem=str(exc),
+                db,
+                TipoEntidadeSync.PLANO_ENTREGAS,
+                pe.id,
+                tentativa,
+                sucesso=False,
+                erro_mensagem=str(exc),
             )
-            erros.append(
-                {"tipo": "plano_entregas", "id": pe.id_plano_entregas, "erro": str(exc)}
-            )
+            erros.append({"tipo": "plano_entregas", "id": pe.id_plano_entregas, "erro": str(exc)})
 
     # --- Planos de Trabalho ---
-    result = await db.execute(
+    result_pt = await db.execute(
         select(PlanoTrabalho)
         .options(
             selectinload(PlanoTrabalho.contribuicoes),
@@ -143,7 +153,7 @@ async def sincronizar_tudo(db: AsyncSession, client: ApiPgdClient) -> dict:
         )
         .where(PlanoTrabalho.api_sincronizado_em.is_(None))
     )
-    for pt in result.scalars():
+    for pt in result_pt.scalars():
         ultimo = await _ultimo_registro(db, TipoEntidadeSync.PLANO_TRABALHO, pt.id)
         if not _elegivel(ultimo, now):
             continue
@@ -160,12 +170,14 @@ async def sincronizar_tudo(db: AsyncSession, client: ApiPgdClient) -> dict:
             sucesso += 1
         except Exception as exc:
             await _registrar(
-                db, TipoEntidadeSync.PLANO_TRABALHO, pt.id, tentativa,
-                sucesso=False, erro_mensagem=str(exc),
+                db,
+                TipoEntidadeSync.PLANO_TRABALHO,
+                pt.id,
+                tentativa,
+                sucesso=False,
+                erro_mensagem=str(exc),
             )
-            erros.append(
-                {"tipo": "plano_trabalho", "id": pt.id_plano_trabalho, "erro": str(exc)}
-            )
+            erros.append({"tipo": "plano_trabalho", "id": pt.id_plano_trabalho, "erro": str(exc)})
 
     await db.commit()
     return {"sucesso": sucesso, "erros": erros}

@@ -29,7 +29,7 @@ class ApiPgdClient:
         self._token: str | None = None
         self._http: httpx.AsyncClient | None = None
 
-    async def __aenter__(self) -> "ApiPgdClient":
+    async def __aenter__(self) -> ApiPgdClient:
         self._http = httpx.AsyncClient(headers={"User-Agent": _USER_AGENT})
         await self._authenticate()
         return self

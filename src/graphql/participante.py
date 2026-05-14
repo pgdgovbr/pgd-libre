@@ -1,20 +1,11 @@
 """Tipos Strawberry e helpers de resolvers para Participante, TCR e Convocação (Sprints 1.2–1.4, 2.4)."""
+
 import enum
 from datetime import date, datetime, time
-from typing import Optional
 
 import strawberry
 
-from ..models.participante import (
-    MotivoDesligamento,
-    RegimeExecucao,
-    StatusConvocacao,
-    StatusTCR,
-    TipoAfastamento,
-    TipoVinculo,
-)
 from .institucional import OrigemUnidadeGql
-
 
 # ---------------------------------------------------------------------------
 # Enums GraphQL
@@ -98,9 +89,9 @@ class ParticipanteType:
     data_assinatura_tcr: date
     tipo_vinculo: TipoVinculoGql
     unidade_execucao_id: strawberry.ID
-    cumpriu_estagio_probatorio: Optional[bool]
-    data_desligamento: Optional[date]
-    motivo_desligamento: Optional[MotivoDesligamentoGql]
+    cumpriu_estagio_probatorio: bool | None
+    data_desligamento: date | None
+    motivo_desligamento: MotivoDesligamentoGql | None
 
 
 @strawberry.type
@@ -113,8 +104,8 @@ class TCRType:
     prazo_antecedencia_convocacao_dias: int
     canais_comunicacao: list[str]
     responsabilidades: str
-    saldo_banco_horas: Optional[int]
-    prazo_compensacao_banco_horas: Optional[date]
+    saldo_banco_horas: int | None
+    prazo_compensacao_banco_horas: date | None
 
 
 @strawberry.type
@@ -158,8 +149,8 @@ class AfastamentoType:
     participante_id: strawberry.ID
     tipo_afastamento: TipoAfastamentoGql
     data_inicio: date
-    data_fim: Optional[date]
-    observacao: Optional[str]
+    data_fim: date | None
+    observacao: str | None
     created_at: datetime
 
 
@@ -168,11 +159,11 @@ class AutorizacaoAdicionalNoturnoType:
     id: strawberry.ID
     participante_id: strawberry.ID
     data_inicio_autorizacao: date
-    data_fim_autorizacao: Optional[date]
+    data_fim_autorizacao: date | None
     horario_inicio_noturno: time
     horario_fim_noturno: time
-    justificativa: Optional[str]
-    autorizado_por_user_id: Optional[int]
+    justificativa: str | None
+    autorizado_por_user_id: int | None
     created_at: datetime
 
 
@@ -195,9 +186,9 @@ class CadastrarParticipanteInput:
     data_assinatura_tcr: date
     tipo_vinculo: TipoVinculoGql
     unidade_execucao_id: strawberry.ID
-    cumpriu_estagio_probatorio: Optional[bool] = None
-    data_fim_estagio_probatorio: Optional[date] = None
-    data_ingresso_pgd: Optional[date] = None
+    cumpriu_estagio_probatorio: bool | None = None
+    data_fim_estagio_probatorio: date | None = None
+    data_ingresso_pgd: date | None = None
 
 
 @strawberry.input
@@ -210,10 +201,10 @@ class PactuarTCRInput:
     ciencia_instalacoes_ergonomia: bool
     ciencia_nao_direito_adquirido: bool
     ciencia_custeio_estrutura: bool
-    chefia_user_id: Optional[int] = None
-    saldo_banco_horas: Optional[int] = None
-    acoes_melhoria: Optional[str] = None
-    tcr_anterior_id: Optional[strawberry.ID] = None
+    chefia_user_id: int | None = None
+    saldo_banco_horas: int | None = None
+    acoes_melhoria: str | None = None
+    tcr_anterior_id: strawberry.ID | None = None
 
 
 @strawberry.input
@@ -226,7 +217,7 @@ class CriarConvocacaoInput:
     periodo_presencial_inicio: date
     periodo_presencial_fim: date
     motivo: str
-    chefia_user_id: Optional[int] = None
+    chefia_user_id: int | None = None
 
 
 @strawberry.input
@@ -258,18 +249,18 @@ class RegistrarAfastamentoInput:
     participante_id: strawberry.ID
     tipo_afastamento: TipoAfastamentoGql
     data_inicio: date
-    data_fim: Optional[date] = None
-    observacao: Optional[str] = None
+    data_fim: date | None = None
+    observacao: str | None = None
 
 
 @strawberry.input
 class AutorizarAdicionalNoturnoInput:
     participante_id: strawberry.ID
     data_inicio_autorizacao: date
-    data_fim_autorizacao: Optional[date] = None
+    data_fim_autorizacao: date | None = None
     horario_inicio_noturno: time = time(22, 0)
     horario_fim_noturno: time = time(5, 0)
-    justificativa: Optional[str] = None
+    justificativa: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -295,9 +286,7 @@ def _participante_to_type(p) -> ParticipanteType:  # type: ignore[no-untyped-def
         cumpriu_estagio_probatorio=p.cumpriu_estagio_probatorio,
         data_desligamento=p.data_desligamento,
         motivo_desligamento=(
-            MotivoDesligamentoGql(p.motivo_desligamento.value)
-            if p.motivo_desligamento
-            else None
+            MotivoDesligamentoGql(p.motivo_desligamento.value) if p.motivo_desligamento else None
         ),
     )
 

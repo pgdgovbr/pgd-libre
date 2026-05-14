@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.audit import AuditAction
@@ -22,7 +22,6 @@ from ..models.user import User
 from .audit import log_audit
 from .institucional import ValidationError
 from .notificacao import criar_notificacao
-
 
 # ---------------------------------------------------------------------------
 # Pure validators
@@ -60,9 +59,7 @@ async def validate_sem_sobreposicao_pe(
         q = q.where(PlanoEntregas.id != exclude_id)
     result = await db.execute(q)
     if result.scalar_one_or_none() is not None:
-        raise ValidationError(
-            "Já existe Plano de Entregas no período informado para esta unidade"
-        )
+        raise ValidationError("Já existe Plano de Entregas no período informado para esta unidade")
 
 
 # ---------------------------------------------------------------------------
@@ -85,9 +82,7 @@ async def criar_plano_entregas(
     ip_address: str | None = None,
 ) -> PlanoEntregas:
     validate_duracao_maxima_pe(data_inicio, data_termino)
-    await validate_sem_sobreposicao_pe(
-        db, unidade_execucao_id, data_inicio, data_termino
-    )
+    await validate_sem_sobreposicao_pe(db, unidade_execucao_id, data_inicio, data_termino)
 
     pe = PlanoEntregas(
         id_plano_entregas=id_plano_entregas,
@@ -147,9 +142,7 @@ async def aprovar_plano_entregas(
         )
 
     if ue and ue.chefia_user_id == aprovador_user_id:
-        raise ValidationError(
-            "A chefia criadora não pode aprovar o próprio plano de entregas"
-        )
+        raise ValidationError("A chefia criadora não pode aprovar o próprio plano de entregas")
 
     # RF-037 — autorização: ADMIN/GESTOR podem direto; CHEFE_IMEDIATO requer delegação ativa
     if user.role not in (UserRole.ADMIN, UserRole.GESTOR_UNIDADE):
@@ -196,12 +189,8 @@ async def aprovar_plano_entregas(
     return pe
 
 
-async def get_plano_entregas(
-    db: AsyncSession, pe_id: uuid.UUID
-) -> PlanoEntregas | None:
-    result = await db.execute(
-        select(PlanoEntregas).where(PlanoEntregas.id == pe_id)
-    )
+async def get_plano_entregas(db: AsyncSession, pe_id: uuid.UUID) -> PlanoEntregas | None:
+    result = await db.execute(select(PlanoEntregas).where(PlanoEntregas.id == pe_id))
     return result.scalar_one_or_none()
 
 

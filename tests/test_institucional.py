@@ -1,4 +1,5 @@
 """Sprint 1.1 — Gestão Institucional: service + GraphQL resolver tests."""
+
 import uuid
 from datetime import date
 
@@ -7,12 +8,9 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.institucional import (
-    AtoAutorizacao,
     OrigemUnidade,
     StatusAto,
     StatusPgd,
-    UnidadeAutorizadora,
-    UnidadeInstituidora,
 )
 from src.models.user import UserRole
 from src.services.institucional import (
@@ -22,7 +20,6 @@ from src.services.institucional import (
     criar_unidade_autorizadora,
     criar_unidade_instituidora,
     get_unidade_autorizadora,
-    get_unidade_instituidora,
     listar_resultados_publicos,
     suspender_pgd,
     validate_motivo_suspensao_required,
@@ -30,7 +27,6 @@ from src.services.institucional import (
 )
 
 from .conftest import persist_user, set_auth_cookie
-
 
 # ---------------------------------------------------------------------------
 # Pure validators
@@ -379,9 +375,7 @@ async def test_gql_criar_unidade_autorizadora(client: AsyncClient, db: AsyncSess
     assert payload["pgdAutorizado"] is False
 
 
-async def test_gql_criar_unidade_autorizadora_requires_admin(
-    client: AsyncClient, db: AsyncSession
-):
+async def test_gql_criar_unidade_autorizadora_requires_admin(client: AsyncClient, db: AsyncSession):
     servidor = await persist_user(db, email="srv@test.com", role=UserRole.SERVIDOR)
     set_auth_cookie(client, servidor)
 
@@ -486,9 +480,7 @@ async def test_gql_atualizar_status_ato(client: AsyncClient, db: AsyncSession):
     assert data["data"]["atualizarStatusAto"]["status"] == "SUSPENSO"
 
 
-async def test_gql_resultados_publicos_sem_autenticacao(
-    client: AsyncClient, db: AsyncSession
-):
+async def test_gql_resultados_publicos_sem_autenticacao(client: AsyncClient, db: AsyncSession):
     query = "{ resultadosPublicos { codUnidadeExecutora nome totalPlanosAvaliados } }"
     resp = await client.post("/graphql", json={"query": query})
     assert resp.status_code == 200

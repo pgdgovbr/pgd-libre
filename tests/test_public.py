@@ -1,7 +1,7 @@
 """Sprint 1.6 — Endpoint público de resultados consolidados (RF-004)."""
+
 from datetime import date
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +48,7 @@ async def _make_ue(db, admin):
         user=admin,
     )
     from src.models.institucional import UnidadeExecucao
+
     ue = UnidadeExecucao(
         unidade_instituidora_id=ui.id,
         cod_unidade_executora=200,
@@ -107,7 +108,6 @@ async def test_resultados_refletem_planos_avaliados(client: AsyncClient, db: Asy
         criar_plano_entregas,
         iniciar_execucao_pe,
     )
-    from src.models.plano import STATUS_PE_AVALIADO
 
     pe = await criar_plano_entregas(
         db,

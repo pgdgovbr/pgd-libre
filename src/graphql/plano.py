@@ -1,14 +1,12 @@
 """Tipos Strawberry e helpers de resolvers para PlanoEntregas, PlanoTrabalho,
 Contribuição e Avaliação (Sprints 1.3–1.5)."""
+
 import enum
 from datetime import date
-from typing import Optional
 
 import strawberry
 
-from ..models.plano import DecisaoRecurso, StatusRecurso, TipoMeta
 from .institucional import OrigemUnidadeGql
-
 
 # ---------------------------------------------------------------------------
 # Enums GraphQL
@@ -50,10 +48,10 @@ class PlanoEntregasType:
     status: int
     data_inicio: date
     data_termino: date
-    avaliacao: Optional[int]
-    data_avaliacao: Optional[date]
-    aprovado_por_user_id: Optional[int]
-    data_aprovacao: Optional[date]
+    avaliacao: int | None
+    data_avaliacao: date | None
+    aprovado_por_user_id: int | None
+    data_aprovacao: date | None
 
 
 @strawberry.type
@@ -85,7 +83,7 @@ class PlanoTrabalhoType:
     data_termino: date
     carga_horaria_disponivel: int
     criterios_avaliacao: str
-    plano_entregas_id: Optional[strawberry.ID]
+    plano_entregas_id: strawberry.ID | None
     contribuicoes: list["ContribuicaoType"]
 
 
@@ -97,9 +95,9 @@ class ContribuicaoType:
     tipo_contribuicao: int
     percentual_contribuicao: int
     descricao: str
-    id_plano_entregas: Optional[str]
-    id_entrega: Optional[str]
-    rotulo: Optional[str]
+    id_plano_entregas: str | None
+    id_entrega: str | None
+    rotulo: str | None
 
 
 @strawberry.type
@@ -109,14 +107,14 @@ class AvaliacaoType:
     plano_trabalho_id: strawberry.ID
     data_inicio_periodo_avaliativo: date
     data_fim_periodo_avaliativo: date
-    descricao_execucao: Optional[str]
-    avaliacao_registros_execucao: Optional[int]
-    data_avaliacao_registros_execucao: Optional[date]
-    avaliacao_justificativa: Optional[str]
-    status_recurso: Optional[StatusRecursoGql]
-    recurso_texto: Optional[str]
-    recurso_decisao: Optional[DecisaoRecursoGql]
-    recurso_decisao_justificativa: Optional[str]
+    descricao_execucao: str | None
+    avaliacao_registros_execucao: int | None
+    data_avaliacao_registros_execucao: date | None
+    avaliacao_justificativa: str | None
+    status_recurso: StatusRecursoGql | None
+    recurso_texto: str | None
+    recurso_decisao: DecisaoRecursoGql | None
+    recurso_decisao_justificativa: str | None
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +158,7 @@ class CriarPlanoTrabalhoInput:
     data_termino: date
     carga_horaria_disponivel: int
     criterios_avaliacao: str
-    plano_entregas_id: Optional[strawberry.ID] = None
+    plano_entregas_id: strawberry.ID | None = None
 
 
 @strawberry.input
@@ -169,9 +167,9 @@ class AdicionarContribuicaoInput:
     tipo_contribuicao: int
     percentual_contribuicao: int
     descricao: str
-    id_plano_entregas: Optional[str] = None
-    id_entrega: Optional[str] = None
-    rotulo: Optional[str] = None
+    id_plano_entregas: str | None = None
+    id_entrega: str | None = None
+    rotulo: str | None = None
 
 
 @strawberry.input
@@ -185,8 +183,8 @@ class RegistrarExecucaoInput:
     id_periodo_avaliativo: str
     data_inicio_periodo_avaliativo: date
     data_fim_periodo_avaliativo: date
-    descricao_execucao: Optional[str] = None
-    ocorrencias: Optional[str] = None
+    descricao_execucao: str | None = None
+    ocorrencias: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -278,12 +276,8 @@ def _avaliacao_to_type(a) -> AvaliacaoType:  # type: ignore[no-untyped-def]
         avaliacao_registros_execucao=a.avaliacao_registros_execucao,
         data_avaliacao_registros_execucao=a.data_avaliacao_registros_execucao,
         avaliacao_justificativa=a.avaliacao_justificativa,
-        status_recurso=(
-            StatusRecursoGql(a.status_recurso.value) if a.status_recurso else None
-        ),
+        status_recurso=(StatusRecursoGql(a.status_recurso.value) if a.status_recurso else None),
         recurso_texto=a.recurso_texto,
-        recurso_decisao=(
-            DecisaoRecursoGql(a.recurso_decisao.value) if a.recurso_decisao else None
-        ),
+        recurso_decisao=(DecisaoRecursoGql(a.recurso_decisao.value) if a.recurso_decisao else None),
         recurso_decisao_justificativa=a.recurso_decisao_justificativa,
     )

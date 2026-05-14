@@ -7,7 +7,7 @@ pode ser restrita a uma UnidadeExecucao e tem janela de vigência.
 JU-08 (em tests/test_jornadas.py): jornada E2E onde admin delega
 APROVAR_PLANO_ENTREGAS para chefia, que então aprova um PE.
 """
-import uuid
+
 from datetime import date
 
 import pytest
@@ -15,6 +15,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.institucional import OrigemUnidade, UnidadeExecucao
+from src.models.plano import TipoMeta
 from src.models.user import UserRole
 from src.services.institucional import (
     ValidationError,
@@ -27,10 +28,8 @@ from src.services.plano_entregas import (
     criar_entrega,
     criar_plano_entregas,
 )
-from src.models.plano import TipoMeta
 
 from .conftest import persist_user, set_auth_cookie
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -39,23 +38,40 @@ from .conftest import persist_user, set_auth_cookie
 
 async def _setup(db: AsyncSession, admin, cod_ua: int = 150001):
     ua = await criar_unidade_autorizadora(
-        db, cod_unidade_autorizadora=cod_ua, origem_unidade=OrigemUnidade.SIAPE,
-        nome="UA DEL", sigla="UDL", user=admin,
+        db,
+        cod_unidade_autorizadora=cod_ua,
+        origem_unidade=OrigemUnidade.SIAPE,
+        nome="UA DEL",
+        sigla="UDL",
+        user=admin,
     )
     await criar_ato_autorizacao(
-        db, unidade_autorizadora_id=ua.id, autoridade="Min.",
-        data_publicacao=date(2024, 1, 1), referencia="DEL", user=admin,
+        db,
+        unidade_autorizadora_id=ua.id,
+        autoridade="Min.",
+        data_publicacao=date(2024, 1, 1),
+        referencia="DEL",
+        user=admin,
     )
     await db.refresh(ua)
     ui = await criar_unidade_instituidora(
-        db, unidade_autorizadora_id=ua.id, cod_unidade_instituidora=150010,
-        nome="UI DEL", sigla="UIL", ato_instituicao_ref="DEL",
-        data_instituicao=date(2024, 1, 1), tipos_atividades="T",
-        conteudo_minimo_tcr="C", prazo_antecedencia_convocacao_dias=5, user=admin,
+        db,
+        unidade_autorizadora_id=ua.id,
+        cod_unidade_instituidora=150010,
+        nome="UI DEL",
+        sigla="UIL",
+        ato_instituicao_ref="DEL",
+        data_instituicao=date(2024, 1, 1),
+        tipos_atividades="T",
+        conteudo_minimo_tcr="C",
+        prazo_antecedencia_convocacao_dias=5,
+        user=admin,
     )
     ue = UnidadeExecucao(
-        unidade_instituidora_id=ui.id, cod_unidade_executora=150020,
-        nome="UE DEL", sigla="UEL",
+        unidade_instituidora_id=ui.id,
+        cod_unidade_executora=150020,
+        nome="UE DEL",
+        sigla="UEL",
     )
     db.add(ue)
     await db.commit()
@@ -65,15 +81,28 @@ async def _setup(db: AsyncSession, admin, cod_ua: int = 150001):
 
 async def _make_pe(db, admin, ua, ui, ue, cod_ua, suffix):
     pe = await criar_plano_entregas(
-        db, id_plano_entregas=f"PE-DEL-{suffix}", origem_unidade=OrigemUnidade.SIAPE,
-        cod_unidade_autorizadora=cod_ua, cod_unidade_instituidora=150010,
-        cod_unidade_executora=150020, unidade_execucao_id=ue.id,
-        data_inicio=date(2026, 1, 1), data_termino=date(2026, 12, 31), user=admin,
+        db,
+        id_plano_entregas=f"PE-DEL-{suffix}",
+        origem_unidade=OrigemUnidade.SIAPE,
+        cod_unidade_autorizadora=cod_ua,
+        cod_unidade_instituidora=150010,
+        cod_unidade_executora=150020,
+        unidade_execucao_id=ue.id,
+        data_inicio=date(2026, 1, 1),
+        data_termino=date(2026, 12, 31),
+        user=admin,
     )
     await criar_entrega(
-        db, id_entrega=f"E-DEL-{suffix}", plano_entregas_id=pe.id, nome_entrega="E",
-        meta_entrega=1, tipo_meta=TipoMeta.UNIDADE, data_entrega=date(2026, 12, 31),
-        nome_unidade_demandante="D", nome_unidade_destinataria="D", user=admin,
+        db,
+        id_entrega=f"E-DEL-{suffix}",
+        plano_entregas_id=pe.id,
+        nome_entrega="E",
+        meta_entrega=1,
+        tipo_meta=TipoMeta.UNIDADE,
+        data_entrega=date(2026, 12, 31),
+        nome_unidade_demandante="D",
+        nome_unidade_destinataria="D",
+        user=admin,
     )
     return pe
 
@@ -280,7 +309,9 @@ async def test_has_delegated_permission_fora_periodo_retorna_false(db: AsyncSess
     assert ok is False
 
 
-async def test_has_delegated_permission_escopo_global_vale_para_qualquer_ue(db: AsyncSession):
+async def test_has_delegated_permission_escopo_global_vale_para_qualquer_ue(
+    db: AsyncSession,
+):
     """Delegação sem unidade_execucao_id (global) vale para qualquer UE consultada."""
     from src.models.institucional import Competencia
     from src.services.institucional import delegar_competencia, has_delegated_permission
@@ -318,8 +349,10 @@ async def test_has_delegated_permission_escopo_ue_nao_vale_em_outra(db: AsyncSes
 
     # outra UE no mesmo UI
     ue_outra = UnidadeExecucao(
-        unidade_instituidora_id=ui.id, cod_unidade_executora=150021,
-        nome="UE OUTRA", sigla="UEO",
+        unidade_instituidora_id=ui.id,
+        cod_unidade_executora=150021,
+        nome="UE OUTRA",
+        sigla="UEO",
     )
     db.add(ue_outra)
     await db.commit()
@@ -387,7 +420,10 @@ async def test_aprovar_pe_chefia_com_delegacao_ok(db: AsyncSession):
         user=admin,
     )
     pe2 = await aprovar_plano_entregas(
-        db, plano_id=pe.id, aprovador_user_id=chefia.id, user=chefia,
+        db,
+        plano_id=pe.id,
+        aprovador_user_id=chefia.id,
+        user=chefia,
     )
     assert pe2.aprovado_por_user_id == chefia.id
     assert pe2.data_aprovacao is not None
@@ -401,7 +437,10 @@ async def test_aprovar_pe_gestor_sem_delegacao_ok(db: AsyncSession):
     pe = await _make_pe(db, admin, ua, ui, ue, 150013, "13")
 
     pe2 = await aprovar_plano_entregas(
-        db, plano_id=pe.id, aprovador_user_id=gestor.id, user=gestor,
+        db,
+        plano_id=pe.id,
+        aprovador_user_id=gestor.id,
+        user=gestor,
     )
     assert pe2.aprovado_por_user_id == gestor.id
 
