@@ -3,7 +3,17 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'infra/**'
+      - '_projeto/**'
+      - '_plan/**'
+      - '**.md'
   pull_request:
+    paths-ignore:
+      - 'infra/**'
+      - '_projeto/**'
+      - '_plan/**'
+      - '**.md'
 
 jobs:
   lint-and-type:

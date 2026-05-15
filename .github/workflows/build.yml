@@ -3,6 +3,11 @@ name: Build & Deploy
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'infra/**'
+      - '_projeto/**'
+      - '_plan/**'
+      - '**.md'
 
 permissions:
   contents: read
