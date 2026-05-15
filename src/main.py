@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .api.health import router as health_router
 from .api.public import router as public_router
@@ -21,6 +22,9 @@ def create_app() -> FastAPI:
         docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
         redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
     )
+
+    # Cloud Run termina TLS antes do app; isso faz request.url_for() retornar https://
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
     # SessionMiddleware é necessário para o OAuth CSRF state (authlib Starlette)
     app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
