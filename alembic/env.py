@@ -31,6 +31,7 @@ from src.models.plano import (  # noqa: F401 — registra metadata
     PlanoEntregas,
     PlanoTrabalho,
 )
+from src.models.sync_log import RegistroEnvioAPI  # noqa: F401 — registra metadata
 from src.models.user import User  # noqa: F401 — registra metadata
 
 config = context.config

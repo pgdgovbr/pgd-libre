@@ -1,8 +1,8 @@
-"""sprint_1_2_3_4_5_6_participante_plano_notificacao
+"""initial schema
 
-Revision ID: d348a38ef5f2
-Revises: 929c75e84a3f
-Create Date: 2026-05-13 13:41:16.288396
+Revision ID: 213398d03375
+Revises: 
+Create Date: 2026-05-15 10:51:46.371111
 
 """
 from typing import Sequence, Union
@@ -11,8 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = 'd348a38ef5f2'
-down_revision: Union[str, None] = '929c75e84a3f'
+revision: str = '213398d03375'
+down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -36,6 +36,18 @@ def upgrade() -> None:
     op.create_index(op.f('ix_audit_logs_record_id'), 'audit_logs', ['record_id'], unique=False)
     op.create_index(op.f('ix_audit_logs_table_name'), 'audit_logs', ['table_name'], unique=False)
     op.create_index(op.f('ix_audit_logs_user_id'), 'audit_logs', ['user_id'], unique=False)
+    op.create_table('registros_envio_api',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('tipo_entidade', sa.Enum('PARTICIPANTE', 'PLANO_ENTREGAS', 'PLANO_TRABALHO', name='tipoentidadesync'), nullable=False),
+    sa.Column('entidade_id', sa.UUID(), nullable=False),
+    sa.Column('tentativa', sa.Integer(), nullable=False),
+    sa.Column('sucesso', sa.Boolean(), nullable=False),
+    sa.Column('http_status', sa.Integer(), nullable=True),
+    sa.Column('erro_mensagem', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_registros_envio_api'))
+    )
+    op.create_index(op.f('ix_registros_envio_api_entidade_id'), 'registros_envio_api', ['entidade_id'], unique=False)
     op.create_table('unidades_autorizadoras',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('origem_unidade', sa.Enum('SIAPE', 'SIORG', name='origemunidade'), nullable=False),
@@ -59,6 +71,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('last_login_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('cod_unidade_autorizadora', sa.BigInteger(), nullable=True),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_users')),
     sa.UniqueConstraint('oauth_sub', name=op.f('uq_users_oauth_sub'))
     )
@@ -107,6 +120,7 @@ def upgrade() -> None:
     sa.Column('nivel_produtividade_adicional_tt', sa.Text(), nullable=True),
     sa.Column('vedacoes_participacao', sa.Text(), nullable=True),
     sa.Column('criterios_selecao_adicionais', sa.Text(), nullable=True),
+    sa.Column('escala_customizada_mapeamento', sa.JSON(), nullable=True),
     sa.Column('procedimento_registro_comparecimento', sa.Text(), nullable=True),
     sa.Column('status', sa.Enum('EM_VIGOR', 'SUSPENSO', 'REVOGADO', name='statuspgd'), nullable=False),
     sa.Column('data_suspensao_revogacao', sa.Date(), nullable=True),
@@ -132,6 +146,22 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['unidade_instituidora_id'], ['unidades_instituidoras.id'], name=op.f('fk_unidades_execucao_unidade_instituidora_id_unidades_instituidoras'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_unidades_execucao'))
     )
+    op.create_table('delegacoes_competencia',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('delegante_user_id', sa.Integer(), nullable=False),
+    sa.Column('delegatario_user_id', sa.Integer(), nullable=False),
+    sa.Column('competencia', sa.Enum('APROVAR_PLANO_ENTREGAS', 'REALIZAR_SELECAO', 'AVALIAR_REGISTROS', name='competencia'), nullable=False),
+    sa.Column('unidade_execucao_id', sa.UUID(), nullable=True),
+    sa.Column('data_inicio', sa.Date(), nullable=False),
+    sa.Column('data_fim', sa.Date(), nullable=True),
+    sa.Column('motivo', sa.Text(), nullable=True),
+    sa.Column('ativo', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['delegante_user_id'], ['users.id'], name=op.f('fk_delegacoes_competencia_delegante_user_id_users')),
+    sa.ForeignKeyConstraint(['delegatario_user_id'], ['users.id'], name=op.f('fk_delegacoes_competencia_delegatario_user_id_users')),
+    sa.ForeignKeyConstraint(['unidade_execucao_id'], ['unidades_execucao.id'], name=op.f('fk_delegacoes_competencia_unidade_execucao_id_unidades_execucao'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_delegacoes_competencia'))
+    )
     op.create_table('participantes',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('origem_unidade', sa.Enum('SIAPE', 'SIORG', name='origemunidade'), nullable=False),
@@ -145,12 +175,15 @@ def upgrade() -> None:
     sa.Column('situacao', sa.Integer(), nullable=False),
     sa.Column('modalidade_execucao', sa.Integer(), nullable=False),
     sa.Column('data_assinatura_tcr', sa.Date(), nullable=False),
+    sa.Column('api_sincronizado_em', sa.DateTime(timezone=True), nullable=True),
     sa.Column('data_ingresso_pgd', sa.Date(), nullable=True),
     sa.Column('data_desligamento', sa.Date(), nullable=True),
     sa.Column('motivo_desligamento', sa.Enum('A_PEDIDO', 'INTERESSE_ADMINISTRACAO', 'MUDANCA_UNIDADE', 'PGD_REVOGADO', name='motivodesligamento'), nullable=True),
     sa.Column('cumpriu_estagio_probatorio', sa.Boolean(), nullable=True),
     sa.Column('data_fim_estagio_probatorio', sa.Date(), nullable=True),
     sa.Column('tipo_vinculo', sa.Enum('EFETIVO', 'COMISSIONADO', 'EMPREGADO_PUBLICO', 'CONTRATO_DETERMINADO', 'ESTAGIARIO', name='tipovinculo'), nullable=False),
+    sa.Column('acumula_cargos', sa.Boolean(), nullable=False),
+    sa.Column('sujeito_adicional_ocupacional', sa.Boolean(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=True),
     sa.Column('unidade_execucao_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -185,6 +218,45 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['unidade_execucao_id'], ['unidades_execucao.id'], name=op.f('fk_planos_entregas_unidade_execucao_id_unidades_execucao'), ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_planos_entregas')),
     sa.UniqueConstraint('origem_unidade', 'cod_unidade_autorizadora', 'id_plano_entregas', name='uq_plano_entregas_api_key')
+    )
+    op.create_table('processos_selecao',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('unidade_execucao_id', sa.UUID(), nullable=False),
+    sa.Column('criterios_tecnicos', sa.Text(), nullable=False),
+    sa.Column('n_vagas', sa.Integer(), nullable=False),
+    sa.Column('resultado', sa.JSON(), nullable=False),
+    sa.Column('realizado_por_user_id', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['realizado_por_user_id'], ['users.id'], name=op.f('fk_processos_selecao_realizado_por_user_id_users')),
+    sa.ForeignKeyConstraint(['unidade_execucao_id'], ['unidades_execucao.id'], name=op.f('fk_processos_selecao_unidade_execucao_id_unidades_execucao'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_processos_selecao'))
+    )
+    op.create_table('afastamentos',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('participante_id', sa.UUID(), nullable=False),
+    sa.Column('tipo_afastamento', sa.Enum('LICENCA_MEDICA', 'LICENCA_MATERNIDADE', 'FERIAS', 'LICENCA_CAPACITACAO', 'OUTROS', name='tipoafastamento'), nullable=False),
+    sa.Column('data_inicio', sa.Date(), nullable=False),
+    sa.Column('data_fim', sa.Date(), nullable=True),
+    sa.Column('observacao', sa.Text(), nullable=True),
+    sa.Column('registrado_por_user_id', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['participante_id'], ['participantes.id'], name=op.f('fk_afastamentos_participante_id_participantes'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['registrado_por_user_id'], ['users.id'], name=op.f('fk_afastamentos_registrado_por_user_id_users')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_afastamentos'))
+    )
+    op.create_table('autorizacoes_adicional_noturno',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('participante_id', sa.UUID(), nullable=False),
+    sa.Column('data_inicio_autorizacao', sa.Date(), nullable=False),
+    sa.Column('data_fim_autorizacao', sa.Date(), nullable=True),
+    sa.Column('horario_inicio_noturno', sa.Time(), nullable=False),
+    sa.Column('horario_fim_noturno', sa.Time(), nullable=False),
+    sa.Column('justificativa', sa.Text(), nullable=True),
+    sa.Column('autorizado_por_user_id', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['autorizado_por_user_id'], ['users.id'], name=op.f('fk_autorizacoes_adicional_noturno_autorizado_por_user_id_users')),
+    sa.ForeignKeyConstraint(['participante_id'], ['participantes.id'], name=op.f('fk_autorizacoes_adicional_noturno_participante_id_participantes'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_autorizacoes_adicional_noturno'))
     )
     op.create_table('convocacoes',
     sa.Column('id', sa.UUID(), nullable=False),
@@ -266,6 +338,11 @@ def upgrade() -> None:
     sa.Column('data_termino', sa.Date(), nullable=False),
     sa.Column('carga_horaria_disponivel', sa.Integer(), nullable=False),
     sa.Column('criterios_avaliacao', sa.Text(), nullable=False),
+    sa.Column('declaracao_ausencia_prejuizo_plano', sa.Boolean(), nullable=False),
+    sa.Column('declaracao_ausencia_prejuizo_comparecer', sa.Boolean(), nullable=False),
+    sa.Column('declaracao_ausencia_prejuizo_contato', sa.Boolean(), nullable=False),
+    sa.Column('declaracao_ausencia_prejuizo_sincrono', sa.Boolean(), nullable=False),
+    sa.Column('trabalho_noturno', sa.Boolean(), nullable=False),
     sa.Column('plano_entregas_id', sa.UUID(), nullable=True),
     sa.Column('api_sincronizado_em', sa.DateTime(timezone=True), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -275,6 +352,19 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['tcr_id'], ['tcrs.id'], name=op.f('fk_planos_trabalho_tcr_id_tcrs'), ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_planos_trabalho')),
     sa.UniqueConstraint('origem_unidade', 'cod_unidade_autorizadora', 'id_plano_trabalho', name='uq_plano_trabalho_api_key')
+    )
+    op.create_table('termos_guarda_equipamento',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('participante_id', sa.UUID(), nullable=False),
+    sa.Column('tcr_id', sa.UUID(), nullable=False),
+    sa.Column('descricao_equipamentos', sa.Text(), nullable=False),
+    sa.Column('data_autorizacao', sa.Date(), nullable=False),
+    sa.Column('autorizado_por_user_id', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['autorizado_por_user_id'], ['users.id'], name=op.f('fk_termos_guarda_equipamento_autorizado_por_user_id_users')),
+    sa.ForeignKeyConstraint(['participante_id'], ['participantes.id'], name=op.f('fk_termos_guarda_equipamento_participante_id_participantes'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['tcr_id'], ['tcrs.id'], name=op.f('fk_termos_guarda_equipamento_tcr_id_tcrs'), ondelete='RESTRICT'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_termos_guarda_equipamento'))
     )
     op.create_table('avaliacoes_registros_execucao',
     sa.Column('id', sa.UUID(), nullable=False),
@@ -289,6 +379,7 @@ def upgrade() -> None:
     sa.Column('data_avaliacao_registros_execucao', sa.Date(), nullable=True),
     sa.Column('avaliacao_justificativa', sa.Text(), nullable=True),
     sa.Column('avaliacao_escala_customizada', sa.String(length=100), nullable=True),
+    sa.Column('horas_inexecucao', sa.Integer(), nullable=True),
     sa.Column('recurso_texto', sa.Text(), nullable=True),
     sa.Column('recurso_data', sa.DateTime(timezone=True), nullable=True),
     sa.Column('recurso_decisao', sa.Enum('ACATADO', 'NAO_ACATADO', name='decisaorecurso'), nullable=True),
@@ -302,6 +393,7 @@ def upgrade() -> None:
     op.create_table('contribuicoes',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('id_contribuicao', sa.String(length=50), nullable=False),
+    sa.Column('rotulo', sa.String(length=50), nullable=True),
     sa.Column('plano_trabalho_id', sa.UUID(), nullable=False),
     sa.Column('tipo_contribuicao', sa.Integer(), nullable=False),
     sa.Column('percentual_contribuicao', sa.Integer(), nullable=False),
@@ -319,12 +411,17 @@ def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('contribuicoes')
     op.drop_table('avaliacoes_registros_execucao')
+    op.drop_table('termos_guarda_equipamento')
     op.drop_table('planos_trabalho')
     op.drop_table('tcrs')
     op.drop_table('entregas')
     op.drop_table('convocacoes')
+    op.drop_table('autorizacoes_adicional_noturno')
+    op.drop_table('afastamentos')
+    op.drop_table('processos_selecao')
     op.drop_table('planos_entregas')
     op.drop_table('participantes')
+    op.drop_table('delegacoes_competencia')
     op.drop_table('unidades_execucao')
     op.drop_table('unidades_instituidoras')
     op.drop_table('notificacoes')
@@ -332,9 +429,34 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_table('users')
     op.drop_table('unidades_autorizadoras')
+    op.drop_index(op.f('ix_registros_envio_api_entidade_id'), table_name='registros_envio_api')
+    op.drop_table('registros_envio_api')
     op.drop_index(op.f('ix_audit_logs_user_id'), table_name='audit_logs')
     op.drop_index(op.f('ix_audit_logs_table_name'), table_name='audit_logs')
     op.drop_index(op.f('ix_audit_logs_record_id'), table_name='audit_logs')
     op.drop_index(op.f('ix_audit_logs_created_at'), table_name='audit_logs')
     op.drop_table('audit_logs')
+
+    # Enums implicitamente criados pelos CREATE TABLE acima — autogenerate não
+    # inclui DROP TYPE no downgrade, então fazemos manualmente.
+    for enum_name in (
+        "auditaction",
+        "competencia",
+        "decisaorecurso",
+        "motivodesligamento",
+        "origemunidade",
+        "regimeexecucao",
+        "statusato",
+        "statusconvocacao",
+        "statuspgd",
+        "statusrecurso",
+        "statustcr",
+        "tipoafastamento",
+        "tipoentidadesync",
+        "tipoevento",
+        "tipometa",
+        "tipovinculo",
+        "userrole",
+    ):
+        op.execute(f"DROP TYPE IF EXISTS {enum_name}")
     # ### end Alembic commands ###
