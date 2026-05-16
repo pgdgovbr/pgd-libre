@@ -154,4 +154,10 @@ async def dev_login(
         samesite="lax",
         secure=False,
     )
-    return {"ok": True, "id": user.id, "email": user.email, "role": user.role, "token": access_token}
+    return {
+        "ok": True,
+        "id": user.id,
+        "email": user.email,
+        "role": user.role,
+        "token": access_token,
+    }
