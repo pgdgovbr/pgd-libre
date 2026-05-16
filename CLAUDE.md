@@ -6,9 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Setup — always use Python 3.12
-python3.12 -m venv .venv
+python3.12 -m venv .venv --clear   # --clear needed if Python path changed (e.g. after upgrade)
 source .venv/bin/activate
 PIP_NO_INPUT=1 pip install -r requirements-dev.txt   # bypasses private GCP Artifact Registry prompt
+
+# Validate before pushing (mirrors CI exactly)
+.venv/bin/ruff check src tests
+.venv/bin/ruff format --check src tests
+.venv/bin/mypy src
+DATABASE_URL=postgresql+psycopg://pgdlibre:pgdlibre@localhost:5432/pgdlibre \
+  SECRET_KEY=test-secret-key FRONTEND_URL=http://localhost:5173 \
+  .venv/bin/pytest -q --tb=short
 
 # Run dev server
 uvicorn src.main:app --reload
