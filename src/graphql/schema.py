@@ -288,9 +288,7 @@ class Query:
         if user is None:
             return []
         # Resolver participante pelo email do user
-        part_res = await db.execute(
-            select(Participante).where(Participante.email == user.email)
-        )
+        part_res = await db.execute(select(Participante).where(Participante.email == user.email))
         participante = part_res.scalar_one_or_none()
         if participante is None:
             return []
@@ -322,7 +320,9 @@ class Query:
             .where(AvaliacaoRegistrosExecucao.id == uuid.UUID(str(id)))
         )
         if user.cod_unidade_autorizadora is not None:
-            stmt = stmt.where(PlanoTrabalho.cod_unidade_autorizadora == user.cod_unidade_autorizadora)
+            stmt = stmt.where(
+                PlanoTrabalho.cod_unidade_autorizadora == user.cod_unidade_autorizadora
+            )
         result = await db.execute(stmt)
         are = result.scalar_one_or_none()
         return _avaliacao_to_type(are) if are else None

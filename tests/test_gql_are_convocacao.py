@@ -8,10 +8,8 @@ Cobre:
 - cancelarConvocacao mutation
 """
 
-import json
 from datetime import date, timedelta
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -426,9 +424,7 @@ async def test_cancelar_convocacao_muda_status_para_cancelada(
 # ---------------------------------------------------------------------------
 
 
-async def test_criar_convocacao_com_prazo_insuficiente_falha(
-    client: AsyncClient, db: AsyncSession
-):
+async def test_criar_convocacao_com_prazo_insuficiente_falha(client: AsyncClient, db: AsyncSession):
     """criar_convocacao com data_comparecimento_prevista < prazo mínimo do TCR deve falhar."""
     ctx = await _setup(db)
     set_auth_cookie(client, ctx["chefe"])
@@ -467,6 +463,6 @@ async def test_criar_convocacao_com_prazo_insuficiente_falha(
     assert resp.status_code == 200
     data = resp.json()
     # Deve retornar erro de prazo insuficiente
-    assert data.get("errors") or (
-        data.get("data", {}).get("criarConvocacao") is None
-    ), "Esperava erro de prazo insuficiente"
+    assert data.get("errors") or (data.get("data", {}).get("criarConvocacao") is None), (
+        "Esperava erro de prazo insuficiente"
+    )
