@@ -113,7 +113,7 @@ async def dev_login(
     email: str,
     name: str = "",
     role: str = "servidor",
-    response: Response = None,
+    response: Response | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Cria/recupera usuário e define cookie — apenas fora de production.
@@ -146,6 +146,7 @@ async def dev_login(
     await db.refresh(user)
 
     access_token = create_access_token(user)
+    assert response is not None
     response.set_cookie(
         key=_COOKIE_NAME,
         value=access_token,
