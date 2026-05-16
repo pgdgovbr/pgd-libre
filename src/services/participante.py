@@ -784,3 +784,72 @@ async def criar_convocacao(
     await db.commit()
     await db.refresh(c)
     return c
+
+
+async def registrar_comparecimento(
+    db: AsyncSession,
+    *,
+    convocacao_id: uuid.UUID,
+    data_efetiva: date,
+    user: User | None = None,
+    ip_address: str | None = None,
+) -> Convocacao:
+    """Registra comparecimento efetivo, mudando status para ATENDIDA."""
+    result = await db.execute(select(Convocacao).where(Convocacao.id == convocacao_id))
+    c = result.scalar_one_or_none()
+    if c is None:
+        raise ValidationError("Convocação não encontrada")
+    if c.status != StatusConvocacao.PENDENTE:
+        raise ValidationError(
+            f"Convocação em status {c.status.value} não pode receber comparecimento"
+        )
+    old = {"status": c.status.value, "data_comparecimento_efetivo": None}
+    c.status = StatusConvocacao.ATENDIDA
+    c.data_comparecimento_efetivo = data_efetiva
+    await log_audit(
+        db,
+        table_name="convocacoes",
+        record_id=str(c.id),
+        action=AuditAction.UPDATE,
+        user=user,
+        old_values=old,
+        new_values={
+            "status": StatusConvocacao.ATENDIDA.value,
+            "data_comparecimento_efetivo": str(data_efetiva),
+        },
+        ip_address=ip_address,
+    )
+    await db.commit()
+    await db.refresh(c)
+    return c
+
+
+async def cancelar_convocacao(
+    db: AsyncSession,
+    *,
+    convocacao_id: uuid.UUID,
+    user: User | None = None,
+    ip_address: str | None = None,
+) -> Convocacao:
+    """Cancela uma convocação pendente."""
+    result = await db.execute(select(Convocacao).where(Convocacao.id == convocacao_id))
+    c = result.scalar_one_or_none()
+    if c is None:
+        raise ValidationError("Convocação não encontrada")
+    if c.status not in (StatusConvocacao.PENDENTE,):
+        raise ValidationError(f"Convocação em status {c.status.value} não pode ser cancelada")
+    old = {"status": c.status.value}
+    c.status = StatusConvocacao.CANCELADA
+    await log_audit(
+        db,
+        table_name="convocacoes",
+        record_id=str(c.id),
+        action=AuditAction.UPDATE,
+        user=user,
+        old_values=old,
+        new_values={"status": StatusConvocacao.CANCELADA.value},
+        ip_address=ip_address,
+    )
+    await db.commit()
+    await db.refresh(c)
+    return c

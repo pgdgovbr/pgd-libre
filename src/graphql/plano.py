@@ -2,7 +2,7 @@
 Contribuição e Avaliação (Sprints 1.3–1.5)."""
 
 import enum
-from datetime import date
+from datetime import date, datetime
 
 import strawberry
 
@@ -85,6 +85,7 @@ class PlanoTrabalhoType:
     criterios_avaliacao: str
     plano_entregas_id: strawberry.ID | None
     contribuicoes: list["ContribuicaoType"]
+    avaliacoes: list["AvaliacaoType"]
 
 
 @strawberry.type
@@ -108,13 +109,18 @@ class AvaliacaoType:
     data_inicio_periodo_avaliativo: date
     data_fim_periodo_avaliativo: date
     descricao_execucao: str | None
+    ocorrencias: str | None
+    data_registro_participante: datetime | None
     avaliacao_registros_execucao: int | None
     data_avaliacao_registros_execucao: date | None
     avaliacao_justificativa: str | None
+    horas_inexecucao: int | None
     status_recurso: StatusRecursoGql | None
     recurso_texto: str | None
+    recurso_data: datetime | None
     recurso_decisao: DecisaoRecursoGql | None
     recurso_decisao_justificativa: str | None
+    recurso_decisao_data: datetime | None
 
 
 # ---------------------------------------------------------------------------
@@ -244,6 +250,8 @@ def _pt_to_type(pt) -> PlanoTrabalhoType:  # type: ignore[no-untyped-def]
     # Use __dict__ to avoid triggering lazy load outside of async context
     raw_contribs = pt.__dict__.get("contribuicoes") or []
     contribuicoes = [_contribuicao_to_type(c) for c in raw_contribs]
+    raw_avaliacoes = pt.__dict__.get("avaliacoes") or []
+    avaliacoes = [_avaliacao_to_type(a) for a in raw_avaliacoes]
     return PlanoTrabalhoType(
         id=strawberry.ID(str(pt.id)),
         id_plano_trabalho=pt.id_plano_trabalho,
@@ -262,6 +270,7 @@ def _pt_to_type(pt) -> PlanoTrabalhoType:  # type: ignore[no-untyped-def]
             strawberry.ID(str(pt.plano_entregas_id)) if pt.plano_entregas_id else None
         ),
         contribuicoes=contribuicoes,
+        avaliacoes=avaliacoes,
     )
 
 
@@ -273,11 +282,16 @@ def _avaliacao_to_type(a) -> AvaliacaoType:  # type: ignore[no-untyped-def]
         data_inicio_periodo_avaliativo=a.data_inicio_periodo_avaliativo,
         data_fim_periodo_avaliativo=a.data_fim_periodo_avaliativo,
         descricao_execucao=a.descricao_execucao,
+        ocorrencias=a.ocorrencias,
+        data_registro_participante=a.data_registro_participante,
         avaliacao_registros_execucao=a.avaliacao_registros_execucao,
         data_avaliacao_registros_execucao=a.data_avaliacao_registros_execucao,
         avaliacao_justificativa=a.avaliacao_justificativa,
+        horas_inexecucao=a.horas_inexecucao,
         status_recurso=(StatusRecursoGql(a.status_recurso.value) if a.status_recurso else None),
         recurso_texto=a.recurso_texto,
+        recurso_data=a.recurso_data,
         recurso_decisao=(DecisaoRecursoGql(a.recurso_decisao.value) if a.recurso_decisao else None),
         recurso_decisao_justificativa=a.recurso_decisao_justificativa,
+        recurso_decisao_data=a.recurso_decisao_data,
     )

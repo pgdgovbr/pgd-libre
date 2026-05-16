@@ -122,6 +122,7 @@ class ConvocacaoType:
     periodo_presencial_fim: date
     motivo: str
     status: StatusConvocacaoGql
+    data_comparecimento_efetivo: date | None
 
 
 @strawberry.type
@@ -320,6 +321,7 @@ def _convocacao_to_type(c) -> ConvocacaoType:  # type: ignore[no-untyped-def]
         periodo_presencial_fim=c.periodo_presencial_fim,
         motivo=c.motivo,
         status=StatusConvocacaoGql(c.status.value),
+        data_comparecimento_efetivo=c.data_comparecimento_efetivo,
     )
 
 

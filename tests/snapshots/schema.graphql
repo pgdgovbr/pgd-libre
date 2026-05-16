@@ -60,13 +60,18 @@ type AvaliacaoType {
   dataInicioPeriodoAvaliativo: Date!
   dataFimPeriodoAvaliativo: Date!
   descricaoExecucao: String
+  ocorrencias: String
+  dataRegistroParticipante: DateTime
   avaliacaoRegistrosExecucao: Int
   dataAvaliacaoRegistrosExecucao: Date
   avaliacaoJustificativa: String
+  horasInexecucao: Int
   statusRecurso: StatusRecursoGql
   recursoTexto: String
+  recursoData: DateTime
   recursoDecisao: DecisaoRecursoGql
   recursoDecisaoJustificativa: String
+  recursoDecisaoData: DateTime
 }
 
 input CadastrarParticipanteInput {
@@ -139,6 +144,7 @@ type ConvocacaoType {
   periodoPresencialFim: Date!
   motivo: String!
   status: StatusConvocacaoGql!
+  dataComparecimentoEfetivo: Date
 }
 
 input CriarAtoAutorizacaoInput {
@@ -299,6 +305,8 @@ type Mutation {
   pactuarTcr(participanteId: ID!, input: PactuarTCRInput!): TCRType!
   assinarTcrChefia(tcrId: ID!): TCRType!
   criarConvocacao(participanteId: ID!, unidadeExecucaoId: ID!, input: CriarConvocacaoInput!): ConvocacaoType!
+  registrarComparecimento(convocacaoId: ID!, dataEfetiva: Date!): ConvocacaoType!
+  cancelarConvocacao(convocacaoId: ID!): ConvocacaoType!
   criarPlanoEntregas(input: CriarPlanoEntregasInput!): PlanoEntregasType!
   criarEntrega(planoEntregasId: ID!, input: CriarEntregaInput!): EntregaType!
   iniciarExecucaoPlanoEntregas(planoId: ID!): PlanoEntregasType!
@@ -411,6 +419,7 @@ type PlanoTrabalhoType {
   criteriosAvaliacao: String!
   planoEntregasId: ID
   contribuicoes: [ContribuicaoType!]!
+  avaliacoes: [AvaliacaoType!]!
 }
 
 type ProcessoSelecaoType {
@@ -434,6 +443,8 @@ type Query {
   listarPlanosEntregas: [PlanoEntregasType!]!
   planoTrabalho(id: ID!): PlanoTrabalhoType
   listarPlanosTrabalho: [PlanoTrabalhoType!]!
+  registroExecucao(id: ID!): AvaliacaoType
+  listarConvocacoes(participanteId: ID!): [ConvocacaoType!]!
   minhasNotificacoes: [NotificacaoType!]!
   painelConformidade: PainelConformidadeType!
   relatorioSemPlanoTrabalho(codUnidadeAutorizadora: Int = null): [ParticipanteType!]!

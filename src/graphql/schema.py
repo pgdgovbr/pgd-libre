@@ -64,7 +64,7 @@ from .participante import (
     _tcr_to_type,
     _termo_guarda_to_type,
 )
-from .permissions import IsAdmin, IsChefiaOrAbove, IsGestorOrAdmin
+from .permissions import IsAdmin, IsAuthenticated, IsChefiaOrAbove, IsGestorOrAdmin
 from .plano import (
     AdicionarContribuicaoInput,
     AprovarPlanoEntregasInput,
@@ -274,9 +274,78 @@ class Query:
         result = await db.execute(stmt)
         return [_pt_to_type(pt) for pt in result.scalars()]
 
+    @strawberry.field
+    async def meus_planos_trabalho(self, info: Info) -> list[PlanoTrabalhoType]:
+        """Planos de trabalho do servidor autenticado (acesso a partir do próprio user)."""
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        from ..models.participante import Participante
+        from ..models.plano import PlanoTrabalho
+
+        db: AsyncSession = info.context["db"]
+        user: User | None = info.context.get("user")
+        if user is None:
+            return []
+        # Resolver participante pelo email do user
+        part_res = await db.execute(
+            select(Participante).where(Participante.email == user.email)
+        )
+        participante = part_res.scalar_one_or_none()
+        if participante is None:
+            return []
+        stmt = (
+            select(PlanoTrabalho)
+            .options(
+                selectinload(PlanoTrabalho.contribuicoes),
+                selectinload(PlanoTrabalho.avaliacoes),
+            )
+            .where(PlanoTrabalho.participante_id == participante.id)
+        )
+        result = await db.execute(stmt)
+        return [_pt_to_type(pt) for pt in result.scalars()]
+
+    @strawberry.field
+    async def registro_execucao(self, info: Info, id: strawberry.ID) -> AvaliacaoType | None:
+        """Retorna ARE pelo id. Servidor vê o próprio; chefia vê todos da UA."""
+        from sqlalchemy import select
+
+        from ..models.plano import AvaliacaoRegistrosExecucao, PlanoTrabalho
+
+        db: AsyncSession = info.context["db"]
+        user: User | None = info.context.get("user")
+        if user is None:
+            return None
+        stmt = (
+            select(AvaliacaoRegistrosExecucao)
+            .join(PlanoTrabalho, AvaliacaoRegistrosExecucao.plano_trabalho_id == PlanoTrabalho.id)
+            .where(AvaliacaoRegistrosExecucao.id == uuid.UUID(str(id)))
+        )
+        if user.cod_unidade_autorizadora is not None:
+            stmt = stmt.where(PlanoTrabalho.cod_unidade_autorizadora == user.cod_unidade_autorizadora)
+        result = await db.execute(stmt)
+        are = result.scalar_one_or_none()
+        return _avaliacao_to_type(are) if are else None
+
+    @strawberry.field(permission_classes=[IsChefiaOrAbove])
+    async def listar_convocacoes(
+        self, info: Info, participante_id: strawberry.ID
+    ) -> list[ConvocacaoType]:
+        from sqlalchemy import select
+
+        from ..models.participante import Convocacao
+
+        db: AsyncSession = info.context["db"]
+        result = await db.execute(
+            select(Convocacao)
+            .where(Convocacao.participante_id == uuid.UUID(str(participante_id)))
+            .order_by(Convocacao.data_convocacao.desc())
+        )
+        return [_convocacao_to_type(c) for c in result.scalars()]
+
     # --- Sprint 1.6 ---
 
-    @strawberry.field(permission_classes=[IsAdmin])
+    @strawberry.field(permission_classes=[IsAuthenticated])
     async def minhas_notificacoes(self, info: Info) -> list[NotificacaoType]:
         from sqlalchemy import select
 
@@ -648,6 +717,40 @@ class Mutation:
             periodo_presencial_fim=input.periodo_presencial_fim,
             motivo=input.motivo,
             chefia_user_id=input.chefia_user_id,
+            user=user,
+            ip_address=_ip(info),
+        )
+        return _convocacao_to_type(c)
+
+    @strawberry.mutation(permission_classes=[IsChefiaOrAbove])
+    async def registrar_comparecimento(
+        self,
+        info: Info,
+        convocacao_id: strawberry.ID,
+        data_efetiva: date,
+    ) -> ConvocacaoType:
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        c = await participante_svc.registrar_comparecimento(
+            db,
+            convocacao_id=uuid.UUID(str(convocacao_id)),
+            data_efetiva=data_efetiva,
+            user=user,
+            ip_address=_ip(info),
+        )
+        return _convocacao_to_type(c)
+
+    @strawberry.mutation(permission_classes=[IsChefiaOrAbove])
+    async def cancelar_convocacao(
+        self,
+        info: Info,
+        convocacao_id: strawberry.ID,
+    ) -> ConvocacaoType:
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        c = await participante_svc.cancelar_convocacao(
+            db,
+            convocacao_id=uuid.UUID(str(convocacao_id)),
             user=user,
             ip_address=_ip(info),
         )
