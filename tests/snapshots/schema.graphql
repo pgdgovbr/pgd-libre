@@ -443,6 +443,7 @@ type Query {
   listarPlanosEntregas: [PlanoEntregasType!]!
   planoTrabalho(id: ID!): PlanoTrabalhoType
   listarPlanosTrabalho: [PlanoTrabalhoType!]!
+  meusPlanosTrabalho: [PlanoTrabalhoType!]!
   registroExecucao(id: ID!): AvaliacaoType
   listarConvocacoes(participanteId: ID!): [ConvocacaoType!]!
   minhasNotificacoes: [NotificacaoType!]!
