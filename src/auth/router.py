@@ -83,16 +83,11 @@ async def callback(
     settings = get_settings()
     access_token = create_access_token(user)
 
-    redirect = RedirectResponse(url=settings.FRONTEND_URL)
-    redirect.set_cookie(
-        key=_COOKIE_NAME,
-        value=access_token,
-        max_age=_COOKIE_MAX_AGE,
-        httponly=True,
-        samesite="lax",
-        secure=settings.ENVIRONMENT == "production",
-    )
-    return redirect
+    # O token vai como query param para que o frontend (domínio diferente) possa
+    # lê-lo e setar seu próprio cookie httpOnly — cookies cross-domain não funcionam
+    # entre *.a.run.app subdomains distintos.
+    redirect_url = f"{settings.FRONTEND_URL}?token={access_token}"
+    return RedirectResponse(url=redirect_url)
 
 
 @router.get("/me")
@@ -111,3 +106,52 @@ async def me(user: User | None = Depends(get_optional_user)) -> dict:
 async def logout(response: Response) -> dict:
     response.delete_cookie(_COOKIE_NAME)
     return {"ok": True}
+
+
+@router.post("/dev-login")
+async def dev_login(
+    email: str,
+    name: str = "",
+    role: str = "servidor",
+    response: Response = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Cria/recupera usuário e define cookie — apenas fora de production.
+    Usado exclusivamente pelos testes automatizados (Playwright global-setup).
+    """
+    if get_settings().ENVIRONMENT == "production":
+        raise HTTPException(status_code=403, detail="Não disponível em produção")
+
+    try:
+        user_role = UserRole(role)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Role inválida: {role}")
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        user = User(
+            email=email,
+            name=name or email.split("@")[0],
+            role=user_role,
+        )
+        db.add(user)
+    else:
+        user.role = user_role
+        if name:
+            user.name = name
+
+    await db.commit()
+    await db.refresh(user)
+
+    access_token = create_access_token(user)
+    response.set_cookie(
+        key=_COOKIE_NAME,
+        value=access_token,
+        max_age=_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+    )
+    return {"ok": True, "id": user.id, "email": user.email, "role": user.role, "token": access_token}
