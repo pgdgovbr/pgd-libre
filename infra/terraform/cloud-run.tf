@@ -123,12 +123,9 @@ resource "google_cloud_run_v2_service" "pgd_libre" {
         }
       }
 
-      # FRONTEND_URL = destino do redirecionamento após OAuth callback.
-      # Apontando para /docs enquanto não temos frontend — o usuário cai no Swagger
-      # já autenticado (cookie JWT setado).
       env {
         name  = "FRONTEND_URL"
-        value = "https://pgd-libre-klvx64dufq-rj.a.run.app/docs"
+        value = "https://pgd-portal-klvx64dufq-rj.a.run.app"
       }
     }
   }
