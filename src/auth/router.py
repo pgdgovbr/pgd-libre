@@ -125,7 +125,7 @@ async def dev_login(
     try:
         user_role = UserRole(role)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Role inválida: {role}")
+        raise HTTPException(status_code=400, detail=f"Role inválida: {role}") from None
 
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
