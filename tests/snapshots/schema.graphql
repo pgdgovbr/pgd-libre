@@ -1,0 +1,597 @@
+input AdicionarContribuicaoInput {
+  idContribuicao: String!
+  tipoContribuicao: Int!
+  percentualContribuicao: Int!
+  descricao: String!
+  idPlanoEntregas: String = null
+  idEntrega: String = null
+  rotulo: String = null
+}
+
+type AfastamentoType {
+  id: ID!
+  participanteId: ID!
+  tipoAfastamento: TipoAfastamentoGql!
+  dataInicio: Date!
+  dataFim: Date
+  observacao: String
+  createdAt: DateTime!
+}
+
+input AprovarPlanoEntregasInput {
+  planoId: ID!
+  aprovadorUserId: Int!
+}
+
+type AtoAutorizacaoType {
+  id: ID!
+  unidadeAutorizadoraId: ID!
+  autoridade: String!
+  dataPublicacao: Date!
+  referencia: String!
+  status: StatusAtoGql!
+}
+
+type AutorizacaoAdicionalNoturnoType {
+  id: ID!
+  participanteId: ID!
+  dataInicioAutorizacao: Date!
+  dataFimAutorizacao: Date
+  horarioInicioNoturno: Time!
+  horarioFimNoturno: Time!
+  justificativa: String
+  autorizadoPorUserId: Int
+  createdAt: DateTime!
+}
+
+input AutorizarAdicionalNoturnoInput {
+  participanteId: ID!
+  dataInicioAutorizacao: Date!
+  dataFimAutorizacao: Date = null
+  horarioInicioNoturno: Time! = "22:00:00"
+  horarioFimNoturno: Time! = "05:00:00"
+  justificativa: String = null
+}
+
+type AvaliacaoType {
+  id: ID!
+  idPeriodoAvaliativo: String!
+  planoTrabalhoId: ID!
+  dataInicioPeriodoAvaliativo: Date!
+  dataFimPeriodoAvaliativo: Date!
+  descricaoExecucao: String
+  avaliacaoRegistrosExecucao: Int
+  dataAvaliacaoRegistrosExecucao: Date
+  avaliacaoJustificativa: String
+  statusRecurso: StatusRecursoGql
+  recursoTexto: String
+  recursoDecisao: DecisaoRecursoGql
+  recursoDecisaoJustificativa: String
+}
+
+input CadastrarParticipanteInput {
+  origemUnidade: OrigemUnidadeGql!
+  codUnidadeAutorizadora: Int!
+  codUnidadeLotacao: Int!
+  matriculaSiape: String!
+  codUnidadeInstituidora: Int!
+  cpf: String!
+  nome: String!
+  email: String!
+  modalidadeExecucao: Int!
+  dataAssinaturaTcr: Date!
+  tipoVinculo: TipoVinculoGql!
+  unidadeExecucaoId: ID!
+  cumpriuEstagioProbatorio: Boolean = null
+  dataFimEstagioProbatorio: Date = null
+  dataIngressoPgd: Date = null
+}
+
+input CandidatoSelecaoInput {
+  id: String!
+  nome: String!
+  criterio: CriteriosPrioridadeGql!
+}
+
+enum CompetenciaGql {
+  APROVAR_PLANO_ENTREGAS
+  REALIZAR_SELECAO
+  AVALIAR_REGISTROS
+}
+
+input ConfirmarSelecaoInput {
+  unidadeExecucaoId: ID!
+  candidatos: [CandidatoSelecaoInput!]!
+  nVagas: Int!
+  criteriosTecnicos: String!
+}
+
+type ConformidadeEntidadeType {
+  tipo: String!
+  total: Int!
+  enviados: Int!
+  pendentes: Int!
+  comErro: Int!
+}
+
+type ContribuicaoType {
+  id: ID!
+  idContribuicao: String!
+  planoTrabalhoId: ID!
+  tipoContribuicao: Int!
+  percentualContribuicao: Int!
+  descricao: String!
+  idPlanoEntregas: String
+  idEntrega: String
+  rotulo: String
+}
+
+type ConvocacaoType {
+  id: ID!
+  participanteId: ID!
+  unidadeExecucaoId: ID!
+  canalComunicacao: String!
+  dataConvocacao: Date!
+  dataComparecimentoPrevista: Date!
+  horarioComparecimento: String!
+  localComparecimento: String!
+  periodoPresencialInicio: Date!
+  periodoPresencialFim: Date!
+  motivo: String!
+  status: StatusConvocacaoGql!
+}
+
+input CriarAtoAutorizacaoInput {
+  autoridade: String!
+  dataPublicacao: Date!
+  referencia: String!
+}
+
+input CriarConvocacaoInput {
+  canalComunicacao: String!
+  dataConvocacao: Date!
+  dataComparecimentoPrevista: Date!
+  horarioComparecimento: String!
+  localComparecimento: String!
+  periodoPresencialInicio: Date!
+  periodoPresencialFim: Date!
+  motivo: String!
+  chefiaUserId: Int = null
+}
+
+input CriarEntregaInput {
+  idEntrega: String!
+  nomeEntrega: String!
+  metaEntrega: Int!
+  tipoMeta: TipoMetaGql!
+  dataEntrega: Date!
+  nomeUnidadeDemandante: String!
+  nomeUnidadeDestinataria: String!
+}
+
+input CriarPlanoEntregasInput {
+  idPlanoEntregas: String!
+  origemUnidade: OrigemUnidadeGql!
+  codUnidadeAutorizadora: Int!
+  codUnidadeInstituidora: Int!
+  codUnidadeExecutora: Int!
+  unidadeExecucaoId: ID!
+  dataInicio: Date!
+  dataTermino: Date!
+}
+
+input CriarPlanoTrabalhoInput {
+  idPlanoTrabalho: String!
+  origemUnidade: OrigemUnidadeGql!
+  codUnidadeAutorizadora: Int!
+  codUnidadeExecutora: Int!
+  codUnidadeLotacaoParticipante: Int!
+  cpfParticipante: String!
+  matriculaSiape: String!
+  dataInicio: Date!
+  dataTermino: Date!
+  cargaHorariaDisponivel: Int!
+  criteriosAvaliacao: String!
+  planoEntregasId: ID = null
+}
+
+input CriarUnidadeAutorizadoraInput {
+  codUnidadeAutorizadora: Int!
+  origemUnidade: OrigemUnidadeGql!
+  nome: String!
+  sigla: String!
+}
+
+input CriarUnidadeInstituidoraInput {
+  codUnidadeInstituidora: Int!
+  nome: String!
+  sigla: String!
+  atoInstituicaoRef: String!
+  dataInstituicao: Date!
+  tiposAtividades: String!
+  modalidadesAutorizadas: [Int!]!
+  conteudoMinimoTcr: String!
+  prazoAntecedenciaConvocacaoDias: Int!
+  vagasPercentualPresencial: Int = null
+  vagasPercentualTtParcial: Int = null
+  vagasPercentualTtIntegral: Int = null
+  vagasPercentualTtExterior: Int = null
+  nivelProdutividadeAdicionalTt: String = null
+  vedacoesParticipacao: String = null
+  criteriosSelecaoAdicionais: String = null
+  procedimentoRegistroComparecimento: String = null
+}
+
+enum CriteriosPrioridadeGql {
+  PCD
+  RESP_PCD
+  MOBILIDADE_REDUZIDA
+  HORARIO_ESPECIAL
+  SEM_PRIORIDADE
+}
+
+"""Date (isoformat)"""
+scalar Date
+
+"""Date with time (isoformat)"""
+scalar DateTime
+
+enum DecisaoRecursoGql {
+  ACATADO
+  NAO_ACATADO
+}
+
+type DelegacaoCompetenciaType {
+  id: ID!
+  deleganteUserId: Int!
+  delegatarioUserId: Int!
+  competencia: CompetenciaGql!
+  unidadeExecucaoId: ID
+  dataInicio: Date!
+  dataFim: Date
+  motivo: String
+  ativo: Boolean!
+  createdAt: DateTime!
+}
+
+input DelegarCompetenciaInput {
+  delegatarioUserId: Int!
+  competencia: CompetenciaGql!
+  dataInicio: Date!
+  dataFim: Date = null
+  unidadeExecucaoId: ID = null
+  motivo: String = null
+}
+
+type EntregaType {
+  id: ID!
+  idEntrega: String!
+  planoEntregasId: ID!
+  nomeEntrega: String!
+  metaEntrega: Int!
+  tipoMeta: TipoMetaGql!
+  dataEntrega: Date!
+  nomeUnidadeDemandante: String!
+  nomeUnidadeDestinataria: String!
+  entregaCancelada: Boolean!
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
+"""
+scalar JSON @specifiedBy(url: "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf")
+
+enum MotivoDesligamentoGql {
+  A_PEDIDO
+  INTERESSE_ADMINISTRACAO
+  MUDANCA_UNIDADE
+  PGD_REVOGADO
+}
+
+type Mutation {
+  criarUnidadeAutorizadora(input: CriarUnidadeAutorizadoraInput!): UnidadeAutorizadoraType!
+  criarAtoAutorizacao(unidadeAutorizadoraId: ID!, input: CriarAtoAutorizacaoInput!): AtoAutorizacaoType!
+  atualizarStatusAto(atoId: ID!, status: StatusAtoGql!): AtoAutorizacaoType!
+  criarUnidadeInstituidora(unidadeAutorizadoraId: ID!, input: CriarUnidadeInstituidoraInput!): UnidadeInstituidoraType!
+  suspenderPgd(unidadeInstituidoraId: ID!, motivo: String!): UnidadeInstituidoraType!
+  cadastrarParticipante(input: CadastrarParticipanteInput!): ParticipanteType!
+  desligarParticipante(participanteId: ID!, motivo: MotivoDesligamentoGql!): ParticipanteType!
+  pactuarTcr(participanteId: ID!, input: PactuarTCRInput!): TCRType!
+  assinarTcrChefia(tcrId: ID!): TCRType!
+  criarConvocacao(participanteId: ID!, unidadeExecucaoId: ID!, input: CriarConvocacaoInput!): ConvocacaoType!
+  criarPlanoEntregas(input: CriarPlanoEntregasInput!): PlanoEntregasType!
+  criarEntrega(planoEntregasId: ID!, input: CriarEntregaInput!): EntregaType!
+  iniciarExecucaoPlanoEntregas(planoId: ID!): PlanoEntregasType!
+  concluirPlanoEntregas(planoId: ID!): PlanoEntregasType!
+  avaliarPlanoEntregas(planoId: ID!, avaliacao: Int!, dataAvaliacao: Date!): PlanoEntregasType!
+  cancelarPlanoEntregas(planoId: ID!): PlanoEntregasType!
+  criarPlanoTrabalho(participanteId: ID!, input: CriarPlanoTrabalhoInput!): PlanoTrabalhoType!
+  adicionarContribuicao(planoTrabalhoId: ID!, input: AdicionarContribuicaoInput!): ContribuicaoType!
+  iniciarExecucaoPlanoTrabalho(planoId: ID!): PlanoTrabalhoType!
+  cancelarPlanoTrabalho(planoId: ID!): PlanoTrabalhoType!
+  registrarExecucao(planoTrabalhoId: ID!, input: RegistrarExecucaoInput!): AvaliacaoType!
+  avaliarRegistrosExecucao(avaliacaoId: ID!, nota: Int!, dataAvaliacao: Date!, justificativa: String = null): AvaliacaoType!
+  abrirRecurso(avaliacaoId: ID!, texto: String!): AvaliacaoType!
+  decidirRecurso(avaliacaoId: ID!, decisao: DecisaoRecursoGql!, justificativa: String = null, novaNota: Int = null): AvaliacaoType!
+  reprocessarEnvio(tipoEntidade: String!, entidadeId: ID!): Boolean!
+  confirmarSelecao(input: ConfirmarSelecaoInput!): ProcessoSelecaoType!
+  aprovarPlanoEntregas(input: AprovarPlanoEntregasInput!): PlanoEntregasType!
+  registrarAutorizacaoEquipamentos(input: RegistrarAutorizacaoEquipamentosInput!): TermoGuardaEquipamentoType!
+  registrarAfastamento(input: RegistrarAfastamentoInput!): AfastamentoType!
+  autorizarAdicionalNoturno(input: AutorizarAdicionalNoturnoInput!): AutorizacaoAdicionalNoturnoType!
+  delegarCompetencia(input: DelegarCompetenciaInput!): DelegacaoCompetenciaType!
+  revogarDelegacao(delegacaoId: ID!): DelegacaoCompetenciaType!
+}
+
+type NotificacaoType {
+  id: ID!
+  tipoEvento: TipoEventoGql!
+  conteudo: String!
+  enviada: Boolean!
+  createdAt: DateTime!
+  enviadaEm: DateTime
+  contexto: JSON
+}
+
+enum OrigemUnidadeGql {
+  SIAPE
+  SIORG
+}
+
+input PactuarTCRInput {
+  modalidadeExecucao: Int!
+  regimeExecucao: RegimeExecucaoGql!
+  prazoAntecedenciaConvocacaoDias: Int!
+  canaisComunicacao: [String!]!
+  responsabilidades: String!
+  cienciaInstalacoesErgonomia: Boolean!
+  cienciaNaoDireitoAdquirido: Boolean!
+  cienciaCusteioEstrutura: Boolean!
+  chefiaUserId: Int = null
+  saldoBancoHoras: Int = null
+  acoesMelhoria: String = null
+  tcrAnteriorId: ID = null
+}
+
+type PainelConformidadeType {
+  participantes: ConformidadeEntidadeType!
+  planosEntregas: ConformidadeEntidadeType!
+  planosTrabalho: ConformidadeEntidadeType!
+}
+
+type ParticipanteType {
+  id: ID!
+  origemUnidade: OrigemUnidadeGql!
+  codUnidadeAutorizadora: Int!
+  codUnidadeLotacao: Int!
+  matriculaSiape: String!
+  codUnidadeInstituidora: Int!
+  nome: String!
+  email: String!
+  situacao: Int!
+  modalidadeExecucao: Int!
+  dataAssinaturaTcr: Date!
+  tipoVinculo: TipoVinculoGql!
+  unidadeExecucaoId: ID!
+  cumpriuEstagioProbatorio: Boolean
+  dataDesligamento: Date
+  motivoDesligamento: MotivoDesligamentoGql
+}
+
+type PlanoEntregasType {
+  id: ID!
+  idPlanoEntregas: String!
+  origemUnidade: OrigemUnidadeGql!
+  codUnidadeAutorizadora: Int!
+  codUnidadeInstituidora: Int!
+  codUnidadeExecutora: Int!
+  unidadeExecucaoId: ID!
+  status: Int!
+  dataInicio: Date!
+  dataTermino: Date!
+  avaliacao: Int
+  dataAvaliacao: Date
+  aprovadoPorUserId: Int
+  dataAprovacao: Date
+}
+
+type PlanoTrabalhoType {
+  id: ID!
+  idPlanoTrabalho: String!
+  origemUnidade: OrigemUnidadeGql!
+  codUnidadeAutorizadora: Int!
+  codUnidadeExecutora: Int!
+  codUnidadeLotacaoParticipante: Int!
+  participanteId: ID!
+  tcrId: ID!
+  status: Int!
+  dataInicio: Date!
+  dataTermino: Date!
+  cargaHorariaDisponivel: Int!
+  criteriosAvaliacao: String!
+  planoEntregasId: ID
+  contribuicoes: [ContribuicaoType!]!
+}
+
+type ProcessoSelecaoType {
+  id: ID!
+  unidadeExecucaoId: ID!
+  criteriosTecnicos: String!
+  nVagas: Int!
+  resultado: JSON!
+  createdAt: DateTime!
+}
+
+type Query {
+  health: String!
+  me: UserType
+  unidadeAutorizadora(id: ID!): UnidadeAutorizadoraType
+  unidadeInstituidora(id: ID!): UnidadeInstituidoraType
+  resultadosPublicos: [ResultadoPublicoType!]!
+  participante(id: ID!): ParticipanteType
+  listarParticipantes: [ParticipanteType!]!
+  planoEntregas(id: ID!): PlanoEntregasType
+  listarPlanosEntregas: [PlanoEntregasType!]!
+  planoTrabalho(id: ID!): PlanoTrabalhoType
+  listarPlanosTrabalho: [PlanoTrabalhoType!]!
+  minhasNotificacoes: [NotificacaoType!]!
+  painelConformidade: PainelConformidadeType!
+  relatorioSemPlanoTrabalho(codUnidadeAutorizadora: Int = null): [ParticipanteType!]!
+  relatorioRegistrosAtraso(referencia: Date!, codUnidadeAutorizadora: Int = null): [AvaliacaoType!]!
+  relatorioAvaliacoesPendentes(referencia: Date!, codUnidadeAutorizadora: Int = null): [AvaliacaoType!]!
+  relatorioPeAvaliacaoPendente(referencia: Date!, codUnidadeAutorizadora: Int = null): [PlanoEntregasType!]!
+  relatorioAfastamentos(codUnidadeAutorizadora: Int!, ano: Int!, mes: Int!): [AfastamentoType!]!
+}
+
+enum RegimeExecucaoGql {
+  INTEGRAL
+  PARCIAL
+}
+
+input RegistrarAfastamentoInput {
+  participanteId: ID!
+  tipoAfastamento: TipoAfastamentoGql!
+  dataInicio: Date!
+  dataFim: Date = null
+  observacao: String = null
+}
+
+input RegistrarAutorizacaoEquipamentosInput {
+  participanteId: ID!
+  tcrId: ID!
+  descricaoEquipamentos: String!
+  dataAutorizacao: Date!
+  modalidadeExecucao: Int!
+}
+
+input RegistrarExecucaoInput {
+  idPeriodoAvaliativo: String!
+  dataInicioPeriodoAvaliativo: Date!
+  dataFimPeriodoAvaliativo: Date!
+  descricaoExecucao: String = null
+  ocorrencias: String = null
+}
+
+type ResultadoPublicoType {
+  codUnidadeExecutora: Int!
+  nome: String!
+  totalPlanosAvaliados: Int!
+  mediaAvaliacao: Float
+}
+
+enum StatusAtoGql {
+  ATIVO
+  SUSPENSO
+  REVOGADO
+}
+
+enum StatusConvocacaoGql {
+  PENDENTE
+  ATENDIDA
+  NAO_ATENDIDA
+  CANCELADA
+}
+
+enum StatusPgdGql {
+  EM_VIGOR
+  SUSPENSO
+  REVOGADO
+}
+
+enum StatusRecursoGql {
+  ABERTO
+  ENCERRADO
+}
+
+enum StatusTCRGql {
+  PENDENTE
+  ATIVO
+  SUBSTITUIDO
+  CANCELADO
+}
+
+type TCRType {
+  id: ID!
+  participanteId: ID!
+  status: StatusTCRGql!
+  modalidadeExecucao: Int!
+  regimeExecucao: RegimeExecucaoGql!
+  prazoAntecedenciaConvocacaoDias: Int!
+  canaisComunicacao: [String!]!
+  responsabilidades: String!
+  saldoBancoHoras: Int
+  prazoCompensacaoBancoHoras: Date
+}
+
+type TermoGuardaEquipamentoType {
+  id: ID!
+  participanteId: ID!
+  tcrId: ID!
+  descricaoEquipamentos: String!
+  dataAutorizacao: Date!
+}
+
+"""Time (isoformat)"""
+scalar Time
+
+enum TipoAfastamentoGql {
+  LICENCA_MEDICA
+  LICENCA_MATERNIDADE
+  FERIAS
+  LICENCA_CAPACITACAO
+  OUTROS
+}
+
+enum TipoEventoGql {
+  AVALIACAO_REALIZADA
+  RECURSO_ABERTO
+  RECURSO_DECIDIDO
+  PRAZO_REGISTRO_IMINENTE
+  CONVOCACAO_EMITIDA
+  DESLIGAMENTO_REGISTRADO
+  PGD_SUSPENSO_REVOGADO
+  PLANO_APROVADO
+}
+
+enum TipoMetaGql {
+  UNIDADE
+  PERCENTUAL
+}
+
+enum TipoVinculoGql {
+  EFETIVO
+  COMISSIONADO
+  EMPREGADO_PUBLICO
+  CONTRATO_DETERMINADO
+  ESTAGIARIO
+}
+
+type UnidadeAutorizadoraType {
+  id: ID!
+  codUnidadeAutorizadora: Int!
+  origemUnidade: OrigemUnidadeGql!
+  nome: String!
+  sigla: String!
+  pgdAutorizado: Boolean!
+}
+
+type UnidadeInstituidoraType {
+  id: ID!
+  unidadeAutorizadoraId: ID!
+  codUnidadeInstituidora: Int!
+  nome: String!
+  sigla: String!
+  atoInstituicaoRef: String!
+  dataInstituicao: Date!
+  status: StatusPgdGql!
+  conteudoMinimoTcr: String!
+  prazoAntecedenciaConvocacaoDias: Int!
+  nivelProdutividadeAdicionalTt: String
+}
+
+type UserType {
+  id: Int!
+  email: String!
+  name: String!
+  role: String!
+}
