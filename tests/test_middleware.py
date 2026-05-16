@@ -13,7 +13,6 @@ Referência: src/config.py — FRONTEND_URL default = "http://localhost:5173"
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
 # ---------------------------------------------------------------------------
 # TC — Health check básico
 # ---------------------------------------------------------------------------

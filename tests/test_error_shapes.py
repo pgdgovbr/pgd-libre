@@ -263,7 +263,7 @@ async def test_permissao_negada_chefiaOrAbove_servidor(
     )
     assert resp.status_code == 200
     body = resp.json()
-    errors = _assert_graphql_error_shape(body)
+    _assert_graphql_error_shape(body)
     # Strawberry levanta StrawberryGraphQLError → data fica null inteiro (não {"field": null})
     assert body.get("data") is None or body["data"].get("listarParticipantes") is None
 

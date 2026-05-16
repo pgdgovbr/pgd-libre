@@ -27,7 +27,7 @@ from src.services.participante import (
     cadastrar_participante,
     pactu_tcr,
 )
-from src.services.plano_entregas import criar_entrega, criar_plano_entregas, iniciar_execucao_pe
+from src.services.plano_entregas import criar_entrega, criar_plano_entregas
 from src.services.plano_trabalho import (
     adicionar_contribuicao,
     criar_plano_trabalho,
@@ -446,8 +446,6 @@ async def test_avaliar_registros_execucao_nota_invalida_retorna_erro(
         headers={"user-agent": "pytest"},
     )
     assert resp.status_code == 200
-    # Pode retornar errors OU data com erro interno — não deve ser 500
-    body = resp.json()
     # O sistema atual pode aceitar nota=0 sem validação GQL — o importante é não crashar
 
 

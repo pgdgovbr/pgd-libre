@@ -274,7 +274,7 @@ async def test_listar_participantes_admin_ve_todos(db: AsyncSession, client: Asy
 
 async def test_listar_planos_trabalho_chefe_ve_lista(db: AsyncSession, client: AsyncClient) -> None:
     """CHEFE_IMEDIATO pode listar planos de trabalho."""
-    admin = await persist_user(db, email="qlpt_adm@test.gov.br", role=UserRole.ADMIN)
+    await persist_user(db, email="qlpt_adm@test.gov.br", role=UserRole.ADMIN)
     chefe = await persist_user(
         db,
         email="qlpt_chf@test.gov.br",
