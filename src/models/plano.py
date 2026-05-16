@@ -44,10 +44,23 @@ STATUS_PE_EM_EXECUCAO = 3
 STATUS_PE_CONCLUIDO = 4
 STATUS_PE_AVALIADO = 5
 
+# PlanoTrabalho — workflow de pactuação bilateral
+# Valores 1-4 batem com a API PGD Central; 5-7 são internos (não enviados).
 STATUS_PT_CANCELADO = 1
-STATUS_PT_APROVADO = 2
-STATUS_PT_EM_EXECUCAO = 3
+STATUS_PT_AGUARDANDO_ASSINATURA_CHEFIA = 2  # antigamente "APROVADO": servidor assinou, falta chefia
+STATUS_PT_EM_EXECUCAO = 3  # ambos assinaram a mesma versão
 STATUS_PT_CONCLUIDO = 4
+STATUS_PT_RASCUNHO_PARTICIPANTE = 5  # servidor está editando
+STATUS_PT_RASCUNHO_CHEFIA = 6  # chefia está editando
+STATUS_PT_AGUARDANDO_ASSINATURA_PARTICIPANTE = 7  # chefia assinou, falta servidor
+
+# Alias retrocompatível — não use em código novo
+STATUS_PT_APROVADO = STATUS_PT_AGUARDANDO_ASSINATURA_CHEFIA
+
+
+class CriadoPorRole(enum.StrEnum):
+    PARTICIPANTE = "participante"
+    CHEFIA = "chefia"
 
 
 class PlanoEntregas(Base):
@@ -149,7 +162,7 @@ class PlanoTrabalho(Base):
     tcr_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tcrs.id", ondelete="RESTRICT")
     )
-    status: Mapped[int] = mapped_column(Integer, default=STATUS_PT_APROVADO)
+    status: Mapped[int] = mapped_column(Integer, default=STATUS_PT_RASCUNHO_PARTICIPANTE)
     data_inicio: Mapped[date] = mapped_column(Date)
     data_termino: Mapped[date] = mapped_column(Date)
     carga_horaria_disponivel: Mapped[int] = mapped_column(Integer)
@@ -162,6 +175,26 @@ class PlanoTrabalho(Base):
     plano_entregas_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("planos_entregas.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # Pactuação bilateral (Decreto 11.072/2022 Art. 11; IN 24/2023 Art. 19)
+    data_assinatura_participante: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    data_assinatura_chefia: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    criado_por_role: Mapped[CriadoPorRole] = mapped_column(
+        Enum(
+            CriadoPorRole,
+            name="criadoporrole",
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        default=CriadoPorRole.PARTICIPANTE,
+    )
+    clonado_de_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("planos_trabalho.id", ondelete="SET NULL"),
         nullable=True,
     )
     api_sincronizado_em: Mapped[datetime | None] = mapped_column(

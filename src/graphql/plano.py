@@ -86,6 +86,11 @@ class PlanoTrabalhoType:
     plano_entregas_id: strawberry.ID | None
     contribuicoes: list["ContribuicaoType"]
     avaliacoes: list["AvaliacaoType"]
+    # Pactuação bilateral
+    data_assinatura_participante: datetime | None
+    data_assinatura_chefia: datetime | None
+    criado_por_role: str  # 'participante' | 'chefia'
+    clonado_de_id: strawberry.ID | None
 
 
 @strawberry.type
@@ -185,6 +190,18 @@ class AprovarPlanoEntregasInput:
 
 
 @strawberry.input
+class EditarPlanoTrabalhoInput:
+    """Campos editáveis do PT em rascunho/aguardando. Todos opcionais — só
+    os fornecidos são atualizados."""
+
+    data_inicio: date | None = None
+    data_termino: date | None = None
+    carga_horaria_disponivel: int | None = None
+    criterios_avaliacao: str | None = None
+    trabalho_noturno: bool | None = None
+
+
+@strawberry.input
 class RegistrarExecucaoInput:
     id_periodo_avaliativo: str
     data_inicio_periodo_avaliativo: date
@@ -271,6 +288,10 @@ def _pt_to_type(pt) -> PlanoTrabalhoType:  # type: ignore[no-untyped-def]
         ),
         contribuicoes=contribuicoes,
         avaliacoes=avaliacoes,
+        data_assinatura_participante=pt.data_assinatura_participante,
+        data_assinatura_chefia=pt.data_assinatura_chefia,
+        criado_por_role=pt.criado_por_role.value,
+        clonado_de_id=(strawberry.ID(str(pt.clonado_de_id)) if pt.clonado_de_id else None),
     )
 
 

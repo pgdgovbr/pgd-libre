@@ -385,7 +385,12 @@ async def test_plano_aprovado_cria_notificacao(db: AsyncSession):
     )
     await assinar_tcr_chefia(db, tcr_id=tcr.id, user=admin)
 
-    await criar_plano_trabalho(
+    from src.services.plano_trabalho import (
+        adicionar_contribuicao,
+        enviar_pt_para_outro_lado,
+    )
+
+    pt = await criar_plano_trabalho(
         db,
         id_plano_trabalho="PT-NOTIF2",
         origem_unidade=OrigemUnidade.SIAPE,
@@ -401,9 +406,22 @@ async def test_plano_aprovado_cria_notificacao(db: AsyncSession):
         criterios_avaliacao="C",
         user=admin,
     )
+    # No novo workflow, notificação acontece ao enviar (não na criação)
+    await adicionar_contribuicao(
+        db,
+        id_contribuicao="C1",
+        plano_trabalho_id=pt.id,
+        tipo_contribuicao=2,
+        percentual_contribuicao=100,
+        descricao="X",
+        user=admin,
+    )
+    await enviar_pt_para_outro_lado(db, plano_id=pt.id, user=admin)
 
     result = await db.execute(
-        select(Notificacao).where(Notificacao.tipo_evento == TipoEvento.PLANO_APROVADO)
+        select(Notificacao).where(
+            Notificacao.tipo_evento == TipoEvento.PLANO_TRABALHO_RECEBIDO_PARA_ASSINATURA
+        )
     )
     notifs = result.scalars().all()
     assert len(notifs) == 1

@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.institucional import OrigemUnidade
 from src.models.participante import RegimeExecucao, TipoVinculo
 from src.models.plano import (
-    STATUS_PT_APROVADO,
     STATUS_PT_CANCELADO,
     STATUS_PT_EM_EXECUCAO,
 )
@@ -197,7 +196,10 @@ async def test_criar_plano_trabalho_ok(db: AsyncSession):
     ua, ui, ue, p = await _setup_full(db, admin)
     pt = await _criar_pt(db, admin, ua, ue, p)
     assert pt.id is not None
-    assert pt.status == STATUS_PT_APROVADO
+    # Admin/chefia agora cria em RASCUNHO_CHEFIA (novo workflow de pactuação bilateral)
+    from src.models.plano import STATUS_PT_RASCUNHO_CHEFIA
+
+    assert pt.status == STATUS_PT_RASCUNHO_CHEFIA
 
 
 async def test_criar_plano_trabalho_sem_tcr_ativo(db: AsyncSession):
@@ -259,7 +261,8 @@ async def test_criar_plano_trabalho_sem_tcr_ativo(db: AsyncSession):
         unidade_execucao_id=ue.id,
         user=admin,
     )
-    with pytest.raises(ValidationError, match="TCR ativo"):
+    # Workflow novo: rascunho aceita TCR PENDENTE; mas sem nenhum TCR ainda falha.
+    with pytest.raises(ValidationError, match="(?i)TCR"):
         await criar_plano_trabalho(
             db,
             id_plano_trabalho="PT-X",
@@ -368,11 +371,15 @@ async def test_adicionar_contribuicao_tipo2_com_plano_rejeitado(db: AsyncSession
 
 
 async def test_maquina_estados_pt(db: AsyncSession):
+    from src.models.plano import STATUS_PT_RASCUNHO_CHEFIA
+
     admin = await persist_user(db, email="a@t.com", role=UserRole.ADMIN)
     ua, ui, ue, p = await _setup_full(db, admin)
     pt = await _criar_pt(db, admin, ua, ue, p)
-    assert pt.status == STATUS_PT_APROVADO
+    # Admin cria PT em rascunho da chefia (workflow novo)
+    assert pt.status == STATUS_PT_RASCUNHO_CHEFIA
 
+    # iniciar_execucao_pt agora é atalho legado: força transição para EM_EXECUCAO
     pt = await iniciar_execucao_pt(db, plano_id=pt.id, user=admin)
     assert pt.status == STATUS_PT_EM_EXECUCAO
 
@@ -449,7 +456,7 @@ async def test_gql_criar_plano_trabalho(client: AsyncClient, db: AsyncSession):
     assert "errors" not in data
     payload = data["data"]["criarPlanoTrabalho"]
     assert payload["idPlanoTrabalho"] == "PT-GQL-001"
-    assert payload["status"] == 2  # STATUS_PT_APROVADO
+    assert payload["status"] == 6  # STATUS_PT_RASCUNHO_CHEFIA (admin cria como chefia)
 
 
 async def test_gql_adicionar_contribuicao(client: AsyncClient, db: AsyncSession):
@@ -570,4 +577,4 @@ async def test_gql_query_plano_trabalho(client: AsyncClient, db: AsyncSession):
     assert "errors" not in data
     payload = data["data"]["planoTrabalho"]
     assert payload["idPlanoTrabalho"] == "PT-QUERY-GQL"
-    assert payload["status"] == 2
+    assert payload["status"] == 6  # RASCUNHO_CHEFIA (admin/chefia cria como chefia)

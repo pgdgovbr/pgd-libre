@@ -15,7 +15,7 @@ Usage:
 """
 import asyncio
 import sys
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -359,10 +359,20 @@ async def seed(session: AsyncSession) -> None:  # noqa: PLR0915
         "proatividade na comunicação de impedimentos; participação nas reuniões de equipe."
     )
 
+    from src.models.plano import (
+        STATUS_PT_AGUARDANDO_ASSINATURA_CHEFIA,
+        STATUS_PT_AGUARDANDO_ASSINATURA_PARTICIPANTE,
+        STATUS_PT_RASCUNHO_PARTICIPANTE,
+        CriadoPorRole,
+    )
+
     def _plano_trabalho(
         id_pt: str, participante: Participante, tcr: TCR,
         status: int, data_inicio: date, data_termino: date,
         carga: int, pe: PlanoEntregas | None = None,
+        criado_por: CriadoPorRole = CriadoPorRole.PARTICIPANTE,
+        data_assinatura_participante: datetime | None = None,
+        data_assinatura_chefia: datetime | None = None,
     ) -> PlanoTrabalho:
         return PlanoTrabalho(
             id_plano_trabalho=id_pt,
@@ -380,15 +390,48 @@ async def seed(session: AsyncSession) -> None:  # noqa: PLR0915
             carga_horaria_disponivel=carga,
             criterios_avaliacao=_criterios,
             plano_entregas_id=pe.id if pe else None,
+            criado_por_role=criado_por,
+            data_assinatura_participante=data_assinatura_participante,
+            data_assinatura_chefia=data_assinatura_chefia,
         )
 
-    pt_ana = _plano_trabalho("PT-2025-ANA-001", p_ana, tcr_ana, STATUS_PT_EM_EXECUCAO, plan_start, plan_end, 960, pe_cgpgd)
-    pt_joao = _plano_trabalho("PT-2025-JOAO-001", p_joao, tcr_joao, STATUS_PT_EM_EXECUCAO, plan_start, plan_end, 960, pe_cgpgd)
-    pt_carla = _plano_trabalho("PT-2025-CARLA-001", p_carla, tcr_carla, STATUS_PT_EM_EXECUCAO, plan_start, plan_end, 960, pe_cgpgd)
-    # Pedro: approved but not started — links to PE_CGTI (not in execution yet)
-    pt_pedro = _plano_trabalho("PT-2025-PEDRO-001", p_pedro, tcr_pedro, STATUS_PT_APROVADO, today - timedelta(days=30), today + timedelta(days=335), 1760, pe_cgti)
+    # PTs em EM_EXECUCAO: simula que o fluxo completo de pactuação aconteceu
+    # (ambas assinaturas registradas, atribuídas como tendo sido feitas na data de início)
+    pact_ts = datetime.combine(plan_start, datetime.min.time())
+    pt_ana = _plano_trabalho(
+        "PT-2025-ANA-001", p_ana, tcr_ana, STATUS_PT_EM_EXECUCAO, plan_start, plan_end, 960, pe_cgpgd,
+        criado_por=CriadoPorRole.PARTICIPANTE,
+        data_assinatura_participante=pact_ts,
+        data_assinatura_chefia=pact_ts,
+    )
+    pt_joao = _plano_trabalho(
+        "PT-2025-JOAO-001", p_joao, tcr_joao, STATUS_PT_EM_EXECUCAO, plan_start, plan_end, 960, pe_cgpgd,
+        criado_por=CriadoPorRole.PARTICIPANTE,
+        data_assinatura_participante=pact_ts,
+        data_assinatura_chefia=pact_ts,
+    )
+    pt_carla = _plano_trabalho(
+        "PT-2025-CARLA-001", p_carla, tcr_carla, STATUS_PT_EM_EXECUCAO, plan_start, plan_end, 960, pe_cgpgd,
+        criado_por=CriadoPorRole.PARTICIPANTE,
+        data_assinatura_participante=pact_ts,
+        data_assinatura_chefia=pact_ts,
+    )
+    # Pedro: aguardando assinatura da chefia (Beatriz) — servidor já assinou
+    pt_pedro = _plano_trabalho(
+        "PT-2025-PEDRO-001", p_pedro, tcr_pedro, STATUS_PT_AGUARDANDO_ASSINATURA_CHEFIA,
+        today - timedelta(days=30), today + timedelta(days=335), 1760, pe_cgti,
+        criado_por=CriadoPorRole.PARTICIPANTE,
+        data_assinatura_participante=datetime.now(timezone.utc) - timedelta(days=2),
+    )
 
-    session.add_all([pt_ana, pt_joao, pt_carla, pt_pedro])
+    # Lucas Ramos: criou PT em rascunho — ainda não enviou (servidor pode editar livremente)
+    pt_lucas = _plano_trabalho(
+        "PT-2025-LUCAS-001", p_lucas, tcr_lucas, STATUS_PT_RASCUNHO_PARTICIPANTE,
+        today - timedelta(days=2), today + timedelta(days=180), 880, pe_cgpgd,
+        criado_por=CriadoPorRole.PARTICIPANTE,
+    )
+
+    session.add_all([pt_ana, pt_joao, pt_carla, pt_pedro, pt_lucas])
     await session.flush()
 
     # Contribuições
@@ -406,6 +449,8 @@ async def seed(session: AsyncSession) -> None:  # noqa: PLR0915
         # Pedro: 80% deliverable + 20% docs
         Contribuicao(id_contribuicao="C-PEDRO-001", plano_trabalho_id=pt_pedro.id, tipo_contribuicao=1, percentual_contribuicao=80, id_plano_entregas="PE-2025-CGTI-001", id_entrega="E-001", descricao="Desenvolvimento da integração com a API PGD Central", rotulo="Desenvolvimento"),
         Contribuicao(id_contribuicao="C-PEDRO-002", plano_trabalho_id=pt_pedro.id, tipo_contribuicao=2, percentual_contribuicao=20, descricao="Reuniões técnicas e documentação", rotulo="Documentação"),
+        # Lucas: rascunho com 1 contribuição
+        Contribuicao(id_contribuicao="C-LUCAS-001", plano_trabalho_id=pt_lucas.id, tipo_contribuicao=2, percentual_contribuicao=100, descricao="Apoio administrativo e suporte às atividades da CGPGD", rotulo="Apoio"),
     ])
 
     # ------------------------------------------------------------------
@@ -610,7 +655,10 @@ async def main() -> None:
         print("📦 Criando dados de demonstração...")
         await seed(session)
     print("✅ Seed concluído!")
-    print("   Usuários: 9 | Participantes: 5 | PlanoTrabalho: 4 | ARE: 5")
+    print("   Usuários: 9 | Participantes: 5 | PlanoTrabalho: 5 | ARE: 5")
+    print("   PT-Ana, PT-João, PT-Carla: EM_EXECUCAO (pactuados)")
+    print("   PT-Pedro: AGUARDANDO_ASSINATURA_CHEFIA (servidor enviou, chefia revisa)")
+    print("   PT-Lucas: RASCUNHO_PARTICIPANTE (servidor elaborando)")
     print("   PlanoEntregas: 2 | Contribuições: 9 | Notificações: 5 | Sync log: 8")
 
 

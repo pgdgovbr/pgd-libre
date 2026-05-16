@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 import strawberry
 from fastapi import Depends, Request
@@ -74,6 +74,7 @@ from .plano import (
     CriarPlanoEntregasInput,
     CriarPlanoTrabalhoInput,
     DecisaoRecursoGql,
+    EditarPlanoTrabalhoInput,
     EntregaType,
     PlanoEntregasType,
     PlanoTrabalhoType,
@@ -126,6 +127,21 @@ class UserType:
     email: str
     name: str
     role: str
+
+
+@strawberry.type
+class AuditLogEntryType:
+    """Entrada do histórico de auditoria (usado para mostrar histórico de edições)."""
+
+    id: int
+    table_name: str
+    record_id: str
+    action: str  # CREATE | UPDATE | DELETE
+    user_id: int | None
+    user_email: str | None
+    old_values: strawberry.scalars.JSON | None
+    new_values: strawberry.scalars.JSON | None
+    created_at: datetime
 
 
 @strawberry.type
@@ -302,6 +318,38 @@ class Query:
         )
         result = await db.execute(stmt)
         return [_pt_to_type(pt) for pt in result.scalars()]
+
+    @strawberry.field(permission_classes=[IsAuthenticated])
+    async def historico_plano_trabalho(
+        self, info: Info, plano_id: strawberry.ID
+    ) -> list[AuditLogEntryType]:
+        """Retorna histórico de auditoria do PT (criação + cada edição/transição)."""
+        from sqlalchemy import select
+
+        from ..models.audit import AuditLog
+
+        db: AsyncSession = info.context["db"]
+        result = await db.execute(
+            select(AuditLog)
+            .where(AuditLog.table_name == "planos_trabalho")
+            .where(AuditLog.record_id == str(plano_id))
+            .order_by(AuditLog.created_at.asc())
+        )
+        entries = result.scalars().all()
+        return [
+            AuditLogEntryType(
+                id=e.id,
+                table_name=e.table_name,
+                record_id=e.record_id,
+                action=e.action.value,
+                user_id=e.user_id,
+                user_email=e.user_email,
+                old_values=e.old_values,
+                new_values=e.new_values,
+                created_at=e.created_at,
+            )
+            for e in entries
+        ]
 
     @strawberry.field
     async def registro_execucao(self, info: Info, id: strawberry.ID) -> AvaliacaoType | None:
@@ -858,13 +906,15 @@ class Mutation:
 
     # --- Sprint 1.4 — Plano de Trabalho ---
 
-    @strawberry.mutation(permission_classes=[IsAdmin])
+    @strawberry.mutation(permission_classes=[IsAuthenticated])
     async def criar_plano_trabalho(
         self,
         info: Info,
         participante_id: strawberry.ID,
         input: CriarPlanoTrabalhoInput,
     ) -> PlanoTrabalhoType:
+        """Cria PT em rascunho. Status inicial depende do papel do usuário:
+        servidor → RASCUNHO_PARTICIPANTE; chefia/admin → RASCUNHO_CHEFIA."""
         db: AsyncSession = info.context["db"]
         user: User = info.context["user"]
         pt = await pt_svc.criar_plano_trabalho(
@@ -884,6 +934,82 @@ class Mutation:
             plano_entregas_id=(
                 uuid.UUID(str(input.plano_entregas_id)) if input.plano_entregas_id else None
             ),
+            user=user,
+            ip_address=_ip(info),
+        )
+        return _pt_to_type(pt)
+
+    @strawberry.mutation(permission_classes=[IsAuthenticated])
+    async def editar_plano_trabalho(
+        self,
+        info: Info,
+        plano_id: strawberry.ID,
+        input: "EditarPlanoTrabalhoInput",
+    ) -> PlanoTrabalhoType:
+        """Edita campos do PT em rascunho/aguardando. Edição em AGUARDANDO_* zera
+        assinatura do outro lado e volta para RASCUNHO_X do editor."""
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        kwargs: dict = {}
+        if input.data_inicio is not None:
+            kwargs["data_inicio"] = input.data_inicio
+        if input.data_termino is not None:
+            kwargs["data_termino"] = input.data_termino
+        if input.carga_horaria_disponivel is not None:
+            kwargs["carga_horaria_disponivel"] = input.carga_horaria_disponivel
+        if input.criterios_avaliacao is not None:
+            kwargs["criterios_avaliacao"] = input.criterios_avaliacao
+        if input.trabalho_noturno is not None:
+            kwargs["trabalho_noturno"] = input.trabalho_noturno
+        pt = await pt_svc.editar_plano_trabalho(
+            db,
+            plano_id=uuid.UUID(str(plano_id)),
+            user=user,
+            ip_address=_ip(info),
+            **kwargs,
+        )
+        return _pt_to_type(pt)
+
+    @strawberry.mutation(permission_classes=[IsAuthenticated])
+    async def enviar_pt_para_outro_lado(
+        self, info: Info, plano_id: strawberry.ID
+    ) -> PlanoTrabalhoType:
+        """Quem está com a bola assina sua parte e envia para o outro lado."""
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        pt = await pt_svc.enviar_pt_para_outro_lado(
+            db, plano_id=uuid.UUID(str(plano_id)), user=user, ip_address=_ip(info)
+        )
+        return _pt_to_type(pt)
+
+    @strawberry.mutation(permission_classes=[IsAuthenticated])
+    async def assinar_pt(self, info: Info, plano_id: strawberry.ID) -> PlanoTrabalhoType:
+        """Assina o PT recebido. Quando ambas assinaturas existem → EM_EXECUCAO."""
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        pt = await pt_svc.assinar_pt(
+            db, plano_id=uuid.UUID(str(plano_id)), user=user, ip_address=_ip(info)
+        )
+        return _pt_to_type(pt)
+
+    @strawberry.mutation(permission_classes=[IsAuthenticated])
+    async def clonar_plano_trabalho(
+        self,
+        info: Info,
+        pt_origem_id: strawberry.ID,
+        id_plano_trabalho_novo: str,
+        nova_data_inicio: date,
+        nova_data_termino: date,
+    ) -> PlanoTrabalhoType:
+        """Clona PT antigo, criando novo em rascunho com mesmas contribuições."""
+        db: AsyncSession = info.context["db"]
+        user: User = info.context["user"]
+        pt = await pt_svc.clonar_plano_trabalho(
+            db,
+            pt_origem_id=uuid.UUID(str(pt_origem_id)),
+            id_plano_trabalho_novo=id_plano_trabalho_novo,
+            nova_data_inicio=nova_data_inicio,
+            nova_data_termino=nova_data_termino,
             user=user,
             ip_address=_ip(info),
         )

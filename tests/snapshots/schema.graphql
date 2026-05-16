@@ -32,6 +32,18 @@ type AtoAutorizacaoType {
   status: StatusAtoGql!
 }
 
+type AuditLogEntryType {
+  id: Int!
+  tableName: String!
+  recordId: String!
+  action: String!
+  userId: Int
+  userEmail: String
+  oldValues: JSON
+  newValues: JSON
+  createdAt: DateTime!
+}
+
 type AutorizacaoAdicionalNoturnoType {
   id: ID!
   participanteId: ID!
@@ -269,6 +281,14 @@ input DelegarCompetenciaInput {
   motivo: String = null
 }
 
+input EditarPlanoTrabalhoInput {
+  dataInicio: Date = null
+  dataTermino: Date = null
+  cargaHorariaDisponivel: Int = null
+  criteriosAvaliacao: String = null
+  trabalhoNoturno: Boolean = null
+}
+
 type EntregaType {
   id: ID!
   idEntrega: String!
@@ -314,6 +334,10 @@ type Mutation {
   avaliarPlanoEntregas(planoId: ID!, avaliacao: Int!, dataAvaliacao: Date!): PlanoEntregasType!
   cancelarPlanoEntregas(planoId: ID!): PlanoEntregasType!
   criarPlanoTrabalho(participanteId: ID!, input: CriarPlanoTrabalhoInput!): PlanoTrabalhoType!
+  editarPlanoTrabalho(planoId: ID!, input: EditarPlanoTrabalhoInput!): PlanoTrabalhoType!
+  enviarPtParaOutroLado(planoId: ID!): PlanoTrabalhoType!
+  assinarPt(planoId: ID!): PlanoTrabalhoType!
+  clonarPlanoTrabalho(ptOrigemId: ID!, idPlanoTrabalhoNovo: String!, novaDataInicio: Date!, novaDataTermino: Date!): PlanoTrabalhoType!
   adicionarContribuicao(planoTrabalhoId: ID!, input: AdicionarContribuicaoInput!): ContribuicaoType!
   iniciarExecucaoPlanoTrabalho(planoId: ID!): PlanoTrabalhoType!
   cancelarPlanoTrabalho(planoId: ID!): PlanoTrabalhoType!
@@ -420,6 +444,10 @@ type PlanoTrabalhoType {
   planoEntregasId: ID
   contribuicoes: [ContribuicaoType!]!
   avaliacoes: [AvaliacaoType!]!
+  dataAssinaturaParticipante: DateTime
+  dataAssinaturaChefia: DateTime
+  criadoPorRole: String!
+  clonadoDeId: ID
 }
 
 type ProcessoSelecaoType {
@@ -444,6 +472,7 @@ type Query {
   planoTrabalho(id: ID!): PlanoTrabalhoType
   listarPlanosTrabalho: [PlanoTrabalhoType!]!
   meusPlanosTrabalho: [PlanoTrabalhoType!]!
+  historicoPlanoTrabalho(planoId: ID!): [AuditLogEntryType!]!
   registroExecucao(id: ID!): AvaliacaoType
   listarConvocacoes(participanteId: ID!): [ConvocacaoType!]!
   minhasNotificacoes: [NotificacaoType!]!
