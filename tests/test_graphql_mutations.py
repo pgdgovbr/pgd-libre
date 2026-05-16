@@ -282,9 +282,9 @@ async def test_criar_unidade_autorizadora_perfil_servidor_retorna_erro(
     assert errors is not None and len(errors) > 0
     # Mensagem deve conter indicação de perfil insuficiente
     messages = " ".join(str(e) for e in errors).lower()
-    assert any(
-        keyword in messages for keyword in ["admin", "perfil", "permission", "autori"]
-    ), f"Mensagem de erro inesperada: {errors}"
+    assert any(keyword in messages for keyword in ["admin", "perfil", "permission", "autori"]), (
+        f"Mensagem de erro inesperada: {errors}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -494,9 +494,7 @@ async def test_abrir_recurso_admin_sucesso(db: AsyncSession, client: AsyncClient
     assert result["recursoTexto"] == "Discordo da avaliação por motivos válidos"
 
 
-async def test_abrir_recurso_sem_auth_retorna_erro(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_abrir_recurso_sem_auth_retorna_erro(db: AsyncSession, client: AsyncClient) -> None:
     """Sem autenticação, abrirRecurso retorna errors[] (não 500)."""
     resp = await client.post(
         "/graphql",
@@ -568,9 +566,7 @@ async def test_decidir_recurso_admin_sucesso(db: AsyncSession, client: AsyncClie
     assert "metas" in result["recursoDecisaoJustificativa"].lower()
 
 
-async def test_decidir_recurso_chefe_sem_permissao(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_decidir_recurso_chefe_sem_permissao(db: AsyncSession, client: AsyncClient) -> None:
     """CHEFE_IMEDIATO tenta decidirRecurso — recebe errors[] (IsAdmin necessário)."""
     chefe = await persist_user(db, email="mut_dec_chf@test.gov.br", role=UserRole.CHEFE_IMEDIATO)
     set_auth_cookie(client, chefe)
@@ -666,9 +662,7 @@ async def test_iniciar_execucao_plano_trabalho_admin_sucesso(
 # ---------------------------------------------------------------------------
 
 
-async def test_cancelar_plano_trabalho_admin_sucesso(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_cancelar_plano_trabalho_admin_sucesso(db: AsyncSession, client: AsyncClient) -> None:
     """Admin cancela PT existente — retorna PT com status cancelado."""
     admin = await persist_user(db, email="mut_cpt_ok@test.gov.br", role=UserRole.ADMIN)
     set_auth_cookie(client, admin)

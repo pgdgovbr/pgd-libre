@@ -52,9 +52,7 @@ async def test_require_user_agent_ausente_em_graphql_retorna_400(client: AsyncCl
     assert resp.status_code == 400
 
 
-async def test_user_agent_presente_passa_middleware(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_user_agent_presente_passa_middleware(db: AsyncSession, client: AsyncClient) -> None:
     """User-Agent qualquer (mesmo não-browser) é aceito."""
     resp = await client.get("/health", headers={"user-agent": "meu-script/1.0"})
     assert resp.status_code == 200
@@ -80,9 +78,7 @@ async def test_cors_options_graphql_com_origin_frontend(client: AsyncClient) -> 
     assert resp.status_code in (200, 204)
     # Header de CORS deve estar presente
     acao = resp.headers.get("access-control-allow-origin")
-    assert acao is not None, (
-        f"Access-Control-Allow-Origin ausente. Headers: {dict(resp.headers)}"
-    )
+    assert acao is not None, f"Access-Control-Allow-Origin ausente. Headers: {dict(resp.headers)}"
 
 
 async def test_cors_origin_desconhecida_nao_tem_acao(client: AsyncClient) -> None:
@@ -101,14 +97,10 @@ async def test_cors_origin_desconhecida_nao_tem_acao(client: AsyncClient) -> Non
     )
     acao = resp.headers.get("access-control-allow-origin")
     # Não deve refletir a origin desconhecida
-    assert acao != "https://evil-attacker.example.com", (
-        "CORS não deve permitir origin desconhecida"
-    )
+    assert acao != "https://evil-attacker.example.com", "CORS não deve permitir origin desconhecida"
 
 
-async def test_cors_get_health_com_origin_frontend(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_cors_get_health_com_origin_frontend(db: AsyncSession, client: AsyncClient) -> None:
     """GET /health com Origin do frontend recebe header ACAO."""
     resp = await client.get(
         "/health",
@@ -154,9 +146,7 @@ async def test_csp_header_ausente_em_health(db: AsyncSession, client: AsyncClien
     assert csp is None, f"CSP inesperado em /health: {csp}"
 
 
-async def test_csp_header_ausente_em_graphql(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_csp_header_ausente_em_graphql(db: AsyncSession, client: AsyncClient) -> None:
     """POST /graphql NÃO recebe Content-Security-Policy."""
     resp = await client.post(
         "/graphql",

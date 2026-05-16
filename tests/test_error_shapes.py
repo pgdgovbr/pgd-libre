@@ -209,9 +209,7 @@ async def _setup_full_chain(db, admin, cod_ua: int):
 # ---------------------------------------------------------------------------
 
 
-async def test_permissao_negada_nao_vaza_stacktrace(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_permissao_negada_nao_vaza_stacktrace(db: AsyncSession, client: AsyncClient) -> None:
     """Erro de permissão (IsAdmin) não deve vazar informações de implementação.
 
     A mensagem de erro deve ser legível para o usuário, sem stacktrace ou
@@ -293,9 +291,7 @@ async def test_uuid_invalido_em_mutation_nao_retorna_500(
         },
         headers={"user-agent": "pytest"},
     )
-    assert resp.status_code == 200, (
-        f"Esperava 200 (GraphQL), mas got {resp.status_code}"
-    )
+    assert resp.status_code == 200, f"Esperava 200 (GraphQL), mas got {resp.status_code}"
     body = resp.json()
     errors = _assert_graphql_error_shape(body)
     # Não deve conter stacktrace
@@ -369,9 +365,7 @@ async def test_campo_obrigatorio_faltando_retorna_errors(
 # ---------------------------------------------------------------------------
 
 
-async def test_me_sem_auth_retorna_null_nao_erro(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_me_sem_auth_retorna_null_nao_erro(db: AsyncSession, client: AsyncClient) -> None:
     """query { me } sem cookie retorna data.me=null — esse é o comportamento esperado.
 
     Contrasta com mutations/queries protegidas que retornam errors[].
@@ -506,9 +500,7 @@ async def test_multiplas_mutations_protegidas_retornam_data_null(
             json={"query": query},
             headers={"user-agent": "pytest"},
         )
-        assert resp.status_code == 200, (
-            f"Mutation '{campo}' retornou HTTP {resp.status_code}"
-        )
+        assert resp.status_code == 200, f"Mutation '{campo}' retornou HTTP {resp.status_code}"
         body = resp.json()
         _assert_graphql_error_shape(body, min_errors=1)
         # Strawberry levanta StrawberryGraphQLError → data fica null inteiro (não {"field": null})

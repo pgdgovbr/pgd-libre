@@ -52,7 +52,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://pgdlibre:pgdlibre@localhost:5432/pgdlibre
       SECRET_KEY: test-secret-key-for-ci-only
-      FRONTEND_URL: http://localhost:3000
+      FRONTEND_URL: http://localhost:5173
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

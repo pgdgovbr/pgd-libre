@@ -41,10 +41,7 @@ def test_schema_snapshot() -> None:
     if not SNAPSHOT_FILE.exists():
         # Primeira execução: criar snapshot
         SNAPSHOT_FILE.write_text(current_sdl, encoding="utf-8")
-        pytest.skip(
-            f"Snapshot criado em {SNAPSHOT_FILE}. "
-            "Execute o teste novamente para validar."
-        )
+        pytest.skip(f"Snapshot criado em {SNAPSHOT_FILE}. Execute o teste novamente para validar.")
 
     stored_sdl = SNAPSHOT_FILE.read_text(encoding="utf-8")
 
@@ -95,9 +92,7 @@ def test_schema_contem_mutations_criticas() -> None:
         "aprovarPlanoEntregas",
     ]
     ausentes = [m for m in mutations_criticas if m not in sdl]
-    assert not ausentes, (
-        f"Mutations críticas ausentes do schema: {ausentes}"
-    )
+    assert not ausentes, f"Mutations críticas ausentes do schema: {ausentes}"
 
 
 def test_schema_contem_queries_criticas() -> None:
@@ -111,6 +106,4 @@ def test_schema_contem_queries_criticas() -> None:
         "resultadosPublicos",
     ]
     ausentes = [q for q in queries_criticas if q not in sdl]
-    assert not ausentes, (
-        f"Queries críticas ausentes do schema: {ausentes}"
-    )
+    assert not ausentes, f"Queries críticas ausentes do schema: {ausentes}"

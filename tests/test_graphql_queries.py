@@ -358,9 +358,7 @@ async def test_listar_planos_entregas_gestor_ve_lista(
 # ---------------------------------------------------------------------------
 
 
-async def test_resultados_publicos_sem_autenticacao(
-    db: AsyncSession, client: AsyncClient
-) -> None:
+async def test_resultados_publicos_sem_autenticacao(db: AsyncSession, client: AsyncClient) -> None:
     """resultadosPublicos é público — retorna lista (vazia ou não) sem auth."""
     resp = await client.post(
         "/graphql",
