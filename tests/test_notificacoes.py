@@ -463,3 +463,55 @@ async def test_gql_minhas_notificacoes(client: AsyncClient, db: AsyncSession):
     assert len(notifs) == 1
     assert notifs[0]["tipoEvento"] == "PLANO_APROVADO"
     assert notifs[0]["enviada"] is False
+
+
+async def test_gql_minhas_notificacoes_tipos_pactuacao_bilateral(
+    client: AsyncClient, db: AsyncSession
+):
+    """Regressão Fase 12.5: notificações criadas pelo workflow de pactuação bilateral
+    devem ser serializadas no GraphQL sem quebrar o `minhasNotificacoes`.
+
+    Antes do fix: o seed criava notificações com tipo
+    `plano_trabalho_recebido_para_assinatura`, mas o TipoEventoGql não tinha
+    esse valor — o resolver levantava 'X is not a valid TipoEventoGql' e zerava
+    o dashboard inteiro do servidor (Felipe não via card 'Aguardando sua ação')."""
+    user = await persist_user(db, email="pact_notif@t.com", role=UserRole.SERVIDOR)
+    set_auth_cookie(client, user)
+
+    # Cria as 3 notificações com tipos novos
+    await criar_notificacao(
+        db,
+        tipo_evento=TipoEvento.PLANO_TRABALHO_RECEBIDO_PARA_ASSINATURA,
+        conteudo="Você recebeu um PT para assinar",
+        destinatario_user_id=user.id,
+    )
+    await criar_notificacao(
+        db,
+        tipo_evento=TipoEvento.PLANO_TRABALHO_DEVOLVIDO_PARA_AJUSTES,
+        conteudo="PT devolvido com ajustes",
+        destinatario_user_id=user.id,
+    )
+    await criar_notificacao(
+        db,
+        tipo_evento=TipoEvento.PLANO_TRABALHO_PACTUADO,
+        conteudo="PT pactuado",
+        destinatario_user_id=user.id,
+    )
+    await db.commit()
+
+    query = """
+    query {
+      minhasNotificacoes { id tipoEvento conteudo }
+    }
+    """
+    resp = await client.post("/graphql", json={"query": query})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("errors") is None, data.get("errors")
+    notifs = data["data"]["minhasNotificacoes"]
+    tipos = {n["tipoEvento"] for n in notifs}
+    assert tipos == {
+        "PLANO_TRABALHO_RECEBIDO_PARA_ASSINATURA",
+        "PLANO_TRABALHO_DEVOLVIDO_PARA_AJUSTES",
+        "PLANO_TRABALHO_PACTUADO",
+    }
