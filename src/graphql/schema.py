@@ -183,32 +183,73 @@ class Query:
 
     # --- Sprints 1.2–1.4 ---
 
-    @strawberry.field(permission_classes=[IsChefiaOrAbove])
+    @strawberry.field(permission_classes=[IsAuthenticated])
     async def participante(self, info: Info, id: strawberry.ID) -> ParticipanteType | None:
+        """Retorna participante por ID.
+
+        - ADMIN: vê qualquer participante
+        - CHEFIA/GESTOR: vê participantes da própria UA
+        - SERVIDOR: só vê o próprio cadastro (match por email)
+        """
         from sqlalchemy import select
 
         from ..models.participante import Participante
+        from ..models.user import UserRole
 
         db: AsyncSession = info.context["db"]
-        ua_cod = _ua_cod(info)
+        user: User | None = info.context.get("user")
+        if user is None:
+            return None
+
         stmt = select(Participante).where(Participante.id == uuid.UUID(str(id)))
-        if ua_cod is not None:
-            stmt = stmt.where(Participante.cod_unidade_autorizadora == ua_cod)
         result = await db.execute(stmt)
         p = result.scalar_one_or_none()
-        return _participante_to_type(p) if p else None
+        if p is None:
+            return None
 
-    @strawberry.field(permission_classes=[IsChefiaOrAbove])
+        # Filtros por papel
+        if user.role == UserRole.ADMIN:
+            return _participante_to_type(p)
+        if user.role == UserRole.SERVIDOR:
+            # Servidor só vê o próprio cadastro
+            if p.email != user.email:
+                return None
+            return _participante_to_type(p)
+        # CHEFIA / GESTOR_UNIDADE: filtro por UA
+        if (
+            user.cod_unidade_autorizadora is not None
+            and p.cod_unidade_autorizadora != user.cod_unidade_autorizadora
+        ):
+            return None
+        return _participante_to_type(p)
+
+    @strawberry.field(permission_classes=[IsAuthenticated])
     async def listar_participantes(self, info: Info) -> list[ParticipanteType]:
+        """Lista participantes visíveis ao usuário.
+
+        - ADMIN: todos
+        - CHEFIA/GESTOR: da própria UA
+        - SERVIDOR: apenas o próprio cadastro + colegas da mesma UA
+          (necessário para o portal resolver nomes de chefia em /meu-plano/[id]/revisar
+          e validar ownership por email). Sem informações sensíveis adicionais.
+        """
         from sqlalchemy import select
 
         from ..models.participante import Participante
+        from ..models.user import UserRole
 
         db: AsyncSession = info.context["db"]
+        user: User | None = info.context.get("user")
+        if user is None:
+            return []
         ua_cod = _ua_cod(info)
         stmt = select(Participante)
+        # SERVIDOR e CHEFIA/GESTOR filtram por UA; ADMIN vê tudo (ua_cod=None).
         if ua_cod is not None:
             stmt = stmt.where(Participante.cod_unidade_autorizadora == ua_cod)
+        elif user.role == UserRole.SERVIDOR:
+            # Servidor sem UA cadastrada → só vê o próprio cadastro
+            stmt = stmt.where(Participante.email == user.email)
         result = await db.execute(stmt)
         return [_participante_to_type(p) for p in result.scalars()]
 
@@ -249,15 +290,27 @@ class Query:
         result = await db.execute(stmt)
         return [_pe_to_type(pe) for pe in result.scalars()]
 
-    @strawberry.field(permission_classes=[IsChefiaOrAbove])
+    @strawberry.field(permission_classes=[IsAuthenticated])
     async def plano_trabalho(self, info: Info, id: strawberry.ID) -> PlanoTrabalhoType | None:
+        """Retorna PT por ID.
+
+        - ADMIN: vê qualquer PT
+        - CHEFIA/GESTOR: vê PTs da própria UA
+        - SERVIDOR: só vê PTs em que ele é o participante (match por email
+          do Participante associado)
+        """
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
 
+        from ..models.participante import Participante
         from ..models.plano import PlanoTrabalho
+        from ..models.user import UserRole
 
         db: AsyncSession = info.context["db"]
-        ua_cod = _ua_cod(info)
+        user: User | None = info.context.get("user")
+        if user is None:
+            return None
+
         stmt = (
             select(PlanoTrabalho)
             .options(
@@ -266,11 +319,30 @@ class Query:
             )
             .where(PlanoTrabalho.id == uuid.UUID(str(id)))
         )
-        if ua_cod is not None:
-            stmt = stmt.where(PlanoTrabalho.cod_unidade_autorizadora == ua_cod)
         result = await db.execute(stmt)
         pt = result.scalar_one_or_none()
-        return _pt_to_type(pt) if pt else None
+        if pt is None:
+            return None
+
+        # Filtros por papel
+        if user.role == UserRole.ADMIN:
+            return _pt_to_type(pt)
+        if user.role == UserRole.SERVIDOR:
+            # Servidor: precisa ser dono do PT
+            part_res = await db.execute(
+                select(Participante).where(Participante.id == pt.participante_id)
+            )
+            participante = part_res.scalar_one_or_none()
+            if participante is None or participante.email != user.email:
+                return None
+            return _pt_to_type(pt)
+        # CHEFIA / GESTOR_UNIDADE: filtro por UA
+        if (
+            user.cod_unidade_autorizadora is not None
+            and pt.cod_unidade_autorizadora != user.cod_unidade_autorizadora
+        ):
+            return None
+        return _pt_to_type(pt)
 
     @strawberry.field(permission_classes=[IsChefiaOrAbove])
     async def listar_planos_trabalho(self, info: Info) -> list[PlanoTrabalhoType]:
