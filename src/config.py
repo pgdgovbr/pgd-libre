@@ -1,6 +1,23 @@
+import os
 from functools import lru_cache
+from urllib.parse import unquote, urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Parse AWS_BEDROCK_CONN (Airflow-style URL) into AWS_* env vars when set.
+# Permite reusar o secret `airflow-connections-aws_bedrock` que o projeto DGB
+# já mantém em Secret Manager. Formato:
+#   aws://ACCESS_KEY:SECRET_KEY@/?region_name=us-east-1
+_aws_conn_raw = os.environ.get("AWS_BEDROCK_CONN")
+if _aws_conn_raw:
+    try:
+        _parsed = urlparse(_aws_conn_raw)
+        os.environ.setdefault("AWS_ACCESS_KEY_ID", unquote(_parsed.username or ""))
+        os.environ.setdefault("AWS_SECRET_ACCESS_KEY", unquote(_parsed.password or ""))
+        _qs = dict(p.split("=") for p in (_parsed.query or "").split("&") if "=" in p)
+        os.environ.setdefault("AWS_DEFAULT_REGION", _qs.get("region_name", "us-east-1"))
+    except Exception:
+        pass
 
 
 class Settings(BaseSettings):
