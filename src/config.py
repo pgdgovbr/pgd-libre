@@ -1,5 +1,6 @@
 import os
 from functools import lru_cache
+from typing import Literal
 from urllib.parse import unquote, urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,7 +24,11 @@ if _aws_conn_raw:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: Literal["development", "demo", "production"] = "development"
+
+    def is_demo(self) -> bool:
+        return self.ENVIRONMENT == "demo"
+
     APP_URL: str = "http://localhost:8000"
     SECRET_KEY: str = "dev-insecure-secret-change-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
