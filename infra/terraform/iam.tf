@@ -44,6 +44,17 @@ resource "google_project_iam_member" "deploy_run_developer" {
   member  = "serviceAccount:${google_service_account.deploy.email}"
 }
 
+# A SA de deploy precisa gerenciar IAM em Secret Manager para conceder à SA
+# runtime acesso a secrets — inclusive secrets externos ao workspace (ex.:
+# `airflow-connections-aws_bedrock` mantido pelo workspace DGB; ver
+# `aws-bedrock.tf`). roles/secretmanager.admin é o escopo mínimo que cobre
+# setIamPolicy em secrets do projeto.
+resource "google_project_iam_member" "deploy_secretmanager_admin" {
+  project = var.project_id
+  role    = "roles/secretmanager.admin"
+  member  = "serviceAccount:${google_service_account.deploy.email}"
+}
+
 # Permite que a SA de deploy atue como a SA do runtime (necessário para deploy do Cloud Run)
 resource "google_service_account_iam_member" "deploy_actas_runtime" {
   service_account_id = google_service_account.runtime.name
