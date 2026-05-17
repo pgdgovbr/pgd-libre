@@ -10,11 +10,23 @@ from ..database import get_db
 from ..models.user import User, UserRole
 from .deps import create_access_token, get_optional_user
 from .oauth import oauth
+from .personas import PERSONAS_DEMO
 
 router = APIRouter()
 
 _COOKIE_NAME = "access_token"
 _COOKIE_MAX_AGE = 60 * 60 * 8  # 8 horas
+
+
+@router.get("/personas-demo")
+async def listar_personas_demo() -> list[dict]:
+    """Lista canônica de personas para a tela /login do portal em modo demo.
+
+    Em production retorna 404 — não vaza informação de personas seed.
+    """
+    if get_settings().ENVIRONMENT == "production":
+        raise HTTPException(status_code=404, detail="Not found")
+    return PERSONAS_DEMO
 
 
 @router.get("/providers")
@@ -146,13 +158,15 @@ async def dev_login(
     await db.refresh(user)
 
     access_token = create_access_token(user)
+    # Secure em demo e production (HTTPS obrigatório); apenas False em development local.
+    secure_cookie = get_settings().ENVIRONMENT != "development"
     response.set_cookie(
         key=_COOKIE_NAME,
         value=access_token,
         max_age=_COOKIE_MAX_AGE,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=secure_cookie,
     )
     return {
         "ok": True,
