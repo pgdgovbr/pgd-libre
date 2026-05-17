@@ -39,9 +39,9 @@ resource "google_cloud_scheduler_job" "sync" {
     uri         = "${google_cloud_run_v2_service.pgd_libre.uri}/internal/sync"
 
     headers = {
-      "Content-Type"   = "application/json"
-      "User-Agent"     = "cloud-scheduler/pgd-libre"
-      "X-Sync-Secret"  = data.google_secret_manager_secret_version.sync_secret_latest.secret_data
+      "Content-Type"  = "application/json"
+      "User-Agent"    = "cloud-scheduler/pgd-libre"
+      "X-Sync-Secret" = data.google_secret_manager_secret_version.sync_secret_latest.secret_data
     }
 
     oidc_token {

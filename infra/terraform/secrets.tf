@@ -10,8 +10,8 @@
 
 locals {
   secrets_managed = [
-    "${local.prefix}-sync-secret",        # X-Sync-Secret header para /internal/sync
-    "${local.prefix}-app-secret-key",     # SECRET_KEY (JWT + Session middleware)
+    "${local.prefix}-sync-secret",    # X-Sync-Secret header para /internal/sync
+    "${local.prefix}-app-secret-key", # SECRET_KEY (JWT + Session middleware)
     "${local.prefix}-govbr-client-id",
     "${local.prefix}-govbr-client-secret",
     "${local.prefix}-google-oauth-client-id",

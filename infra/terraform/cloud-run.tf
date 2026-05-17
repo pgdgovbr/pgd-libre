@@ -127,6 +127,20 @@ resource "google_cloud_run_v2_service" "pgd_libre" {
         name  = "FRONTEND_URL"
         value = "https://pgd-portal-klvx64dufq-rj.a.run.app"
       }
+
+      # AWS Bedrock (feature "Reescrever com IA"). O secret está em formato
+      # URL Airflow (aws://ACCESS:SECRET@/?region_name=X); o app faz parsing
+      # em AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_DEFAULT_REGION no
+      # startup.
+      env {
+        name = "AWS_BEDROCK_CONN"
+        value_source {
+          secret_key_ref {
+            secret  = data.google_secret_manager_secret.aws_bedrock_conn.secret_id
+            version = "latest"
+          }
+        }
+      }
     }
   }
 
