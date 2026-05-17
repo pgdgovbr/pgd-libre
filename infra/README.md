@@ -36,6 +36,11 @@ gcloud config set project inspire-7-finep
 
 # Cria o bucket pgd-libre-terraform-state
 make bootstrap
+
+# Concede roles/secretmanager.admin à SA pgd-libre-deploy. Precisa de
+# alguém com Project Owner/IAM Admin pois a própria SA não tem
+# projectIamAdmin. Idempotente.
+./scripts/bootstrap-deploy-permissions.sh
 ```
 
 Depois do bootstrap, importe o bucket para o state:
