@@ -16,6 +16,13 @@ class TipoEventoGql(enum.Enum):
     DESLIGAMENTO_REGISTRADO = "desligamento_registrado"
     PGD_SUSPENSO_REVOGADO = "pgd_suspenso_revogado"
     PLANO_APROVADO = "plano_aprovado"
+    # Pactuação bilateral do Plano de Trabalho — adicionados na Fase 12.5
+    # (sem esses valores, minhasNotificacoes falha com erro de enum quando o
+    # usuário tem notificações criadas pelo workflow de pactuação,
+    # quebrando o dashboard inteiro)
+    PLANO_TRABALHO_RECEBIDO_PARA_ASSINATURA = "plano_trabalho_recebido_para_assinatura"
+    PLANO_TRABALHO_DEVOLVIDO_PARA_AJUSTES = "plano_trabalho_devolvido_para_ajustes"
+    PLANO_TRABALHO_PACTUADO = "plano_trabalho_pactuado"
 
 
 @strawberry.type
