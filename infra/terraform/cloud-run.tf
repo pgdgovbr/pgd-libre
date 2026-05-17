@@ -47,10 +47,14 @@ resource "google_cloud_run_v2_service" "pgd_libre" {
       }
 
       env {
-        # Mantido como "staging" enquanto não há dados reais — habilita /docs e /redoc
-        # com Swagger UI. Mudar para "production" quando entrar em uso real.
+        # "demo" sinaliza explicitamente instância de demonstração:
+        # - /auth/dev-login liberado (em production seria 403)
+        # - /auth/personas-demo expõe lista de personas seed
+        # - /docs e /redoc com Swagger UI habilitados
+        # - cookie Secure=True (mesmo comportamento de production)
+        # Mudar para "production" quando entrar em uso real (instalação em órgão).
         name  = "ENVIRONMENT"
-        value = "staging"
+        value = "demo"
       }
 
       env {
