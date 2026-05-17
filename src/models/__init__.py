@@ -1,3 +1,4 @@
+from .ai_rewrite import AIRewriteEvent
 from .audit import AuditAction, AuditLog
 from .institucional import (
     AtoAutorizacao,
@@ -70,4 +71,5 @@ __all__ = [
     "StatusRecurso",
     "Notificacao",
     "TipoEvento",
+    "AIRewriteEvent",
 ]

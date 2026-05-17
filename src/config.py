@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     API_PGD_PASSWORD: str = ""
     SYNC_SECRET: str = "dev-sync-secret"
 
+    # AWS Bedrock — feature "Reescrever com IA" no registro de execução
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_DEFAULT_REGION: str = "us-east-1"
+    BEDROCK_MODEL_ID: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    BEDROCK_MAX_RETRIES: int = 3
+    BEDROCK_MAX_TOKENS: int = 1500
+    AI_REWRITE_RATE_LIMIT_PER_HOUR: int = 10
+
 
 @lru_cache
 def get_settings() -> Settings:
