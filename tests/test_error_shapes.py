@@ -250,20 +250,27 @@ async def test_permissao_negada_nao_vaza_stacktrace(db: AsyncSession, client: As
 async def test_permissao_negada_chefiaOrAbove_servidor(
     db: AsyncSession, client: AsyncClient
 ) -> None:
-    """SERVIDOR tentando listarParticipantes → errors[] com mensagem de permissão."""
+    """SERVIDOR tentando listarPlanosTrabalho (IsChefiaOrAbove) → errors[] com
+    mensagem de permissão.
+
+    Nota: listarParticipantes deixou de ser IsChefiaOrAbove no Bug #1 da Fase 12.5
+    (servidor precisa para resolver chefiaNome em /meu-plano/[id]/revisar).
+    listarPlanosTrabalho continua sendo IsChefiaOrAbove — é a query certa para
+    validar o shape de erro de permissão neste teste.
+    """
     servidor = await persist_user(db, email="es_srv2@test.gov.br", role=UserRole.SERVIDOR)
     set_auth_cookie(client, servidor)
 
     resp = await client.post(
         "/graphql",
-        json={"query": "{ listarParticipantes { id } }"},
+        json={"query": "{ listarPlanosTrabalho { id } }"},
         headers={"user-agent": "pytest"},
     )
     assert resp.status_code == 200
     body = resp.json()
     _assert_graphql_error_shape(body)
     # Strawberry levanta StrawberryGraphQLError → data fica null inteiro (não {"field": null})
-    assert body.get("data") is None or body["data"].get("listarParticipantes") is None
+    assert body.get("data") is None or body["data"].get("listarPlanosTrabalho") is None
 
 
 # ---------------------------------------------------------------------------
