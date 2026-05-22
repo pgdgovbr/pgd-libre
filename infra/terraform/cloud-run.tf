@@ -16,7 +16,7 @@ resource "google_cloud_run_v2_service" "pgd_libre" {
     service_account = google_service_account.runtime.email
 
     scaling {
-      min_instance_count = 0
+      min_instance_count = 1
       max_instance_count = 4
     }
 
