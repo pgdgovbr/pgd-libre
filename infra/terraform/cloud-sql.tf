@@ -47,7 +47,8 @@ resource "google_sql_database_instance" "pgd_libre" {
     user_labels = local.common_labels
   }
 
-  deletion_protection = true
+  # Encerramento (pgd-libre#13): liberado para o destroy; dados descartáveis, sem backup.
+  deletion_protection = false
 
   depends_on = [google_project_service.required]
 }
@@ -55,10 +56,17 @@ resource "google_sql_database_instance" "pgd_libre" {
 resource "google_sql_database" "pgdlibre" {
   name     = "pgdlibre"
   instance = google_sql_database_instance.pgd_libre.name
+
+  # Some junto com a instância; evita DROP DATABASE pela API no destroy.
+  deletion_policy = "ABANDON"
 }
 
 resource "google_sql_user" "pgdlibre_app" {
   name     = "pgdlibre_app"
   instance = google_sql_database_instance.pgd_libre.name
   password = random_password.db_app_password.result
+
+  # No Postgres, apagar pela API um usuário dono de objetos falha; ele some
+  # junto com a instância.
+  deletion_policy = "ABANDON"
 }
