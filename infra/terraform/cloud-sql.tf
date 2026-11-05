@@ -53,12 +53,14 @@ resource "google_sql_database_instance" "pgd_libre" {
   depends_on = [google_project_service.required]
 }
 
-resource "google_sql_database" "pgdlibre" {
-  name     = "pgdlibre"
-  instance = google_sql_database_instance.pgd_libre.name
-
-  # Some junto com a instância; evita DROP DATABASE pela API no destroy.
-  deletion_policy = "ABANDON"
+# Encerramento (#13): o database sai do state sem ser destruído. A API não
+# aceita update de database Postgres (o deletion_policy = ABANDON do #14
+# falhou), e ele some junto com a instância no destroy.
+removed {
+  from = google_sql_database.pgdlibre
+  lifecycle {
+    destroy = false
+  }
 }
 
 resource "google_sql_user" "pgdlibre_app" {

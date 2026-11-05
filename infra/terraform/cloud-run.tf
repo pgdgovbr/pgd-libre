@@ -10,6 +10,9 @@ resource "google_cloud_run_v2_service" "pgd_libre" {
   name     = local.prefix
   location = var.region
 
+  # Encerramento (#13): o provider 6.x protege o Cloud Run por padrão.
+  deletion_protection = false
+
   ingress = "INGRESS_TRAFFIC_ALL"
 
   template {

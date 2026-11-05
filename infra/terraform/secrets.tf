@@ -40,7 +40,7 @@ resource "google_secret_manager_secret_version" "db_connection_string" {
     google_sql_user.pgdlibre_app.name,
     random_password.db_app_password.result,
     google_sql_database_instance.pgd_libre.public_ip_address,
-    google_sql_database.pgdlibre.name,
+    "pgdlibre", # database fora do state (#13)
     google_sql_database_instance.pgd_libre.connection_name,
   )
 }
